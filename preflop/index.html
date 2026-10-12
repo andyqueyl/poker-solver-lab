@@ -101,15 +101,16 @@ kbd { font: 11px var(--mono); border: 1px solid currentColor; border-bottom-widt
 
 .feedback { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px 20px; }
 @media (max-width: 560px) { .feedback { grid-template-columns: minmax(0, 1fr); } }
-.verdict { display: flex; align-items: center; gap: 10px; font: 700 24px/1 var(--display); text-transform: uppercase; color: var(--v); }
+.verdict { display: flex; align-items: center; gap: 10px; font: 700 28px/1 var(--display); text-transform: uppercase; color: var(--v); }
 .verdict .dot { width: 13px; height: 13px; border-radius: 50%; background: var(--v); }
 .v-good { --v: var(--call); } .v-close { --v: var(--warn); } .v-bad { --v: var(--raise); }
-.why { margin: 8px 0 12px; max-width: 54ch; font-size: 14px; }
+.why { margin: 10px 0 14px; max-width: 58ch; font-size: 16px; }
 .mix { display: grid; gap: 6px; }
-.mixrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 46px 64px; gap: 8px; align-items: center; font-size: 13px; }
+.mixrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 48px 66px; gap: 8px; align-items: center; font-size: 14px; }
+.mixrow.label { font-size: 11px; white-space: nowrap; }
 .mixrow .bar { height: 9px; border-radius: 99px; background: var(--fold); overflow: hidden; }
 .mixrow .bar div { height: 100%; border-radius: 99px; background: var(--c); }
-.mixrow .num { text-align: right; font-size: 12px; }
+.mixrow .num { text-align: right; font-size: 13px; }
 .mixrow.chosen span:first-child { font-weight: 600; }
 .next { margin-top: 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .mini { width: 210px; max-width: 100%; }
@@ -232,45 +233,48 @@ button:active:not(:disabled) { transform: scale(0.96); }
 .labtoast { position: absolute; left: 50%; top: 50%; z-index: 30; pointer-events: none; display: inline-flex; align-items: center; gap: 10px; padding: 10px 18px 10px 12px; border-radius: 99px; background: var(--surface); color: var(--v, var(--ink)); border: 2px solid var(--v, var(--line)); font: 700 22px/1 var(--display); text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; box-shadow: 0 20px 40px -18px rgba(0, 0, 0, 0.75); transform: translate(-50%, -50%); }
 .labtoast i { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--v, var(--ink)); color: var(--surface); font: 700 16px/1 var(--body); font-style: normal; }
 .labtoast.fixed { position: fixed; top: 96px; }
-.labtoast.out { opacity: 0; transition: opacity 0.35s ease; }
+.labtoast.out { opacity: 0; transition: opacity 0.3s ease; }
 
 /* Explorer grids */
 .grid13 .cell { transition: transform 0.12s ease, box-shadow 0.12s ease; }
 .grid13 .cell:hover { transform: scale(1.14); z-index: 3; position: relative; box-shadow: 0 8px 16px -8px rgba(0, 0, 0, 0.7); }
 
+/* Motion: short, eased, no overshoot. Only things that actually changed move. */
+:root { --lab-ease: cubic-bezier(0.2, 0.8, 0.2, 1); }
 @media (prefers-reduced-motion: no-preference) {
-  .wrap > header, .wrap > .labbar { animation: lab-rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-  .wrap > header { animation-delay: 60ms; }
-  .card { animation: lab-rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-  .side > .card:nth-child(2), .main > .card:nth-child(2) { animation-delay: 70ms; }
-  .side > .card:nth-child(3), .main > .card:nth-child(3) { animation-delay: 140ms; }
-  .side > .card:nth-child(4), .main > .card:nth-child(4) { animation-delay: 210ms; }
-  .side > .card:nth-child(5), .main > .card:nth-child(5) { animation-delay: 280ms; }
-  .table, .felt { animation: lab-table 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .wrap > header, .wrap > .labbar { animation: lab-rise 0.45s var(--lab-ease) both; }
+  .wrap > header { animation-delay: 40ms; }
+  .card { animation: lab-rise 0.4s var(--lab-ease) both; }
+  .side > .card:nth-child(2), .main > .card:nth-child(2) { animation-delay: 50ms; }
+  .side > .card:nth-child(3), .main > .card:nth-child(3) { animation-delay: 100ms; }
+  .side > .card:nth-child(4), .main > .card:nth-child(4) { animation-delay: 150ms; }
+  .side > .card:nth-child(5), .main > .card:nth-child(5) { animation-delay: 200ms; }
+  .table, .felt { animation: lab-table 0.5s var(--lab-ease) both; }
 
-  .actions .act, .actions > button { animation: lab-pop 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.3) backwards; }
-  .actions > :nth-child(2) { animation-delay: 40ms; }
-  .actions > :nth-child(3) { animation-delay: 80ms; }
-  .actions > :nth-child(4) { animation-delay: 120ms; }
-  .actions > :nth-child(5) { animation-delay: 160ms; }
-  .actions > :nth-child(6) { animation-delay: 200ms; }
+  .actions .act, .actions > button { animation: lab-in 0.18s var(--lab-ease) backwards; }
+  .actions > :nth-child(2) { animation-delay: 20ms; }
+  .actions > :nth-child(3) { animation-delay: 40ms; }
+  .actions > :nth-child(4) { animation-delay: 60ms; }
+  .actions > :nth-child(5) { animation-delay: 80ms; }
+  .actions > :nth-child(6) { animation-delay: 100ms; }
 
-  .pc.lab-deal { animation: lab-deal 0.46s cubic-bezier(0.2, 0.9, 0.3, 1.15) backwards; animation-delay: var(--lab-d, 0ms); }
-  .pc.lab-flip { animation: lab-flip 0.5s cubic-bezier(0.3, 0.7, 0.3, 1) backwards; animation-delay: var(--lab-d, 0ms); }
-  .lab-pop { animation: lab-pop 0.38s cubic-bezier(0.2, 0.9, 0.3, 1.4); }
-  .lab-bump { animation: lab-bump 0.5s ease; }
-  .banner:not([hidden]) { animation: lab-pop 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.3); }
-  .mixrow .bar div, .streetrow .bar div, .evtable .bar div, .mix .bar div { transform-origin: left center; animation: lab-grow 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
-  .labtoast { animation: lab-toast 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.35); }
+  .pc.lab-deal { animation: lab-deal 0.3s var(--lab-ease) backwards; animation-delay: var(--lab-d, 0ms); }
+  .pc.lab-flip { animation: lab-flip 0.3s var(--lab-ease) backwards; animation-delay: var(--lab-d, 0ms); }
+  .lab-pop { animation: lab-pop 0.22s var(--lab-ease); }
+  .lab-bump { animation: lab-bump 0.32s ease-out; }
+  .banner:not([hidden]) { animation: lab-in 0.25s var(--lab-ease); }
+  .mixrow .bar div, .streetrow .bar div, .evtable .bar div, .mix .bar div { transform-origin: left center; animation: lab-grow 0.45s var(--lab-ease) backwards; }
+  .labtoast { animation: lab-toast 0.22s var(--lab-ease); }
 }
-@keyframes lab-rise { from { opacity: 0; transform: translateY(18px); } }
-@keyframes lab-table { from { opacity: 0; transform: scale(0.97); } }
-@keyframes lab-pop { from { opacity: 0; transform: scale(0.8); } }
-@keyframes lab-deal { from { opacity: 0; transform: translate(0, -34px) rotate(-12deg) scale(0.8); } 55% { opacity: 1; } }
+@keyframes lab-rise { from { opacity: 0; transform: translateY(10px); } }
+@keyframes lab-table { from { opacity: 0; transform: scale(0.985); } }
+@keyframes lab-in { from { opacity: 0; transform: translateY(4px); } }
+@keyframes lab-pop { from { opacity: 0; transform: scale(0.9); } }
+@keyframes lab-deal { from { opacity: 0; transform: translateY(-14px) scale(0.94); } }
 @keyframes lab-flip { from { transform: perspective(400px) rotateY(90deg); } }
-@keyframes lab-bump { 30% { transform: scale(1.1); } }
+@keyframes lab-bump { 40% { transform: scale(1.06); } }
 @keyframes lab-grow { from { transform: scaleX(0); } }
-@keyframes lab-toast { from { opacity: 0; transform: translate(-50%, -50%) scale(0.6); } }
+@keyframes lab-toast { from { opacity: 0; transform: translate(-50%, -50%) scale(0.92); } }
 
 @media (max-width: 520px) {
   .labhome { font-size: 16px; } .labhome svg { width: 26px; height: 26px; }
@@ -709,28 +713,49 @@ const PRE6 = {"version":2,"pos":["UTG","HJ","CO","BTN","SB","BB"],"stack":100,"n
   const seen = new Map(); // spot key -> last identity
   let lastAct = 0, verdictBefore = '';
 
+  // Where an element sits: its seat (by id, or by table position for seats that are rebuilt every render),
+  // else the nearest element with an id. Each region needs its own key, or two seats fight over one.
+  const regionIds = new WeakMap(); let nextRegion = 0;
+  const keyOf = (a) => {
+    if (a.id) return '#' + a.id;
+    if (a.style && a.style.left) return 'S' + a.style.left + ',' + a.style.top;
+    if (!regionIds.has(a)) regionIds.set(a, 'r' + nextRegion++);
+    return regionIds.get(a);
+  };
   const anchorOf = (el) => {
-    const seat = el.closest('.seat');
-    if (seat) return ['S' + seat.style.left + ',' + seat.style.top, seat];
-    const a = el.closest('[id]');
-    return a ? ['#' + a.id, a] : ['body', document.body];
+    const a = el.closest('.seat') || el.closest('[id]') || document.body;
+    return [keyOf(a), a];
   };
   const restart = (el, cls) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
 
+  // Cards are compared by identity within their region, so a card that's already on screen never animates
+  // again when the page re-renders. New face-down cards deal in; face-up cards that replace backs flip.
+  let seenCards = new Map();
+  const isBack = (pc) => pc.classList.contains('back');
   function scanCards() {
-    const fresh = new Map(); // anchor -> count of newly dealt cards in this pass, for staggering
+    const groups = new Map();
     for (const pc of document.querySelectorAll('.pc')) {
-      const [ak, anchor] = anchorOf(pc);
-      const i = [...anchor.querySelectorAll('.pc')].indexOf(pc);
-      const key = 'pc|' + ak + '|' + i;
-      const id = pc.classList.contains('slot') ? 'slot' : pc.classList.contains('back') ? 'back' : pc.textContent.trim();
-      const prev = seen.get(key);
-      seen.set(key, id);
-      if (prev === id || id === 'slot' || pc.classList.contains('lab-deal') || pc.classList.contains('lab-flip')) continue;
-      const n = fresh.get(ak) || 0; fresh.set(ak, n + 1);
-      pc.style.setProperty('--lab-d', n * 85 + 'ms');
-      pc.classList.add(prev === 'back' ? 'lab-flip' : 'lab-deal');
+      if (pc.classList.contains('slot')) continue;
+      const [ak] = anchorOf(pc);
+      if (!groups.has(ak)) groups.set(ak, []);
+      groups.get(ak).push(pc);
     }
+    const next = new Map();
+    for (const [ak, els] of groups) {
+      const prev = seenCards.get(ak) || { faces: new Set(), backs: 0 };
+      const faces = new Set(), backs = els.filter(isBack).length;
+      let flips = Math.max(0, prev.backs - backs), backsSeen = 0, n = 0;
+      for (const pc of els) {
+        const back = isBack(pc), id = back ? '' : pc.textContent.trim();
+        if (!back) faces.add(id);
+        const fresh = back ? backsSeen++ >= prev.backs : !prev.faces.has(id);
+        if (!fresh || pc.classList.contains('lab-deal') || pc.classList.contains('lab-flip')) continue;
+        pc.style.setProperty('--lab-d', n++ * 55 + 'ms');
+        pc.classList.add(!back && flips-- > 0 ? 'lab-flip' : 'lab-deal');
+      }
+      next.set(ak, { faces, backs });
+    }
+    seenCards = next;
   }
   function scanText(sel, cls, keyPrefix) {
     for (const el of document.querySelectorAll(sel)) {
