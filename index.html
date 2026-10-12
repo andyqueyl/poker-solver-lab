@@ -67,7 +67,8 @@ a.tile:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .t { font: 700 28px/1 var(--display); text-transform: uppercase; letter-spacing: 0.01em; text-wrap: balance; }
 .d { margin: 0; font-size: 15px; line-height: 1.4; color: var(--muted); }
 
-.tile.about { background: var(--tint); border-style: dashed; }
+.tile.about { background: var(--tint); border-style: dashed; aspect-ratio: auto; }
+.grid li.wide { grid-column: 1 / -1; }
 .about .t { font-size: 23px; }
 .about .d { font-size: 14px; }
 
@@ -102,13 +103,13 @@ a.tile:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
       <path d="M48 31c-5 7-14 11-14 18.5 0 4.6 3.6 7.8 7.7 7.8 2.3 0 4.2-1 5.3-2.6-.4 3.6-1.9 6.7-4.6 9.3h11.2c-2.7-2.6-4.2-5.7-4.6-9.3 1.1 1.6 3 2.6 5.3 2.6 4.1 0 7.7-3.2 7.7-7.8C62 42 53 38 48 31z" fill="var(--ink)"/>
     </svg></div>
     <h1><span class="w">Poker</span> <em class="w">Solver</em> <span class="w">Lab</span></h1>
-    <p class="lede">Seven tools built on solvers computed for this project, from push/fold up to full six-handed hands. Every trainer grades your decisions against the solver and tracks your leaks.</p>
+    <p class="lede">Seven tools built on solvers computed for this project, from push/fold up to full six-handed hands, plus private tables for playing your friends. Every trainer grades your decisions against the solver and tracks your leaks.</p>
    </div>
     <div class="cue"><button type="button" id="cue">Choose a mode<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></div>
   </header>
 
   <section class="modes" id="modes">
-  <div class="modes-head"><h2>Choose a <em>mode</em></h2><span>7 tools · learn → preflop → full hands → study</span></div>
+  <div class="modes-head"><h2>Choose a <em>mode</em></h2><span>8 tools · learn → preflop → full hands → study → play</span></div>
   <ul class="grid">
     <li><a class="tile" href="learn/">
       <div class="top"><span>01 · Learn</span><span class="arrow">↗</span></div>
@@ -152,7 +153,13 @@ a.tile:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
       <div class="t">6&#8209;Max Spot Explorer</div>
       <p class="d">Ranges for 11 kinds of six-handed pots.</p>
     </a></li>
-    <li><div class="tile about">
+    <li><a class="tile" href="play/">
+      <div class="top"><span>08 · Play</span><span class="arrow">↗</span></div>
+      <div class="icon"><svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="24" cy="30" r="9"/><path d="M8 60c0-10 7-16 16-16s16 6 16 16"/><circle cx="50" cy="30" r="9"/><path d="M36 50c3-4 8-6 14-6 9 0 16 6 16 16"/></svg></div>
+      <div class="t">Play with Friends</div>
+      <p class="d">Private no-limit tables: send a link and play.</p>
+    </a></li>
+    <li class="wide"><div class="tile about">
       <div class="top"><span>About the solutions</span></div>
       <div class="t">Approximate, simplified</div>
       <p class="d">Every tool solves a simplified game: bet sizes are limited to the buttons shown, and after the flop hands are grouped by strength. Each page explains its own model at the bottom. Stats and leaks stay in your browser.</p>
