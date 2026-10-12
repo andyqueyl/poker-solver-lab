@@ -345,6 +345,14 @@ button:active:not(:disabled) { transform: scale(0.96); }
 <div class="wrap">
   <nav class="labbar" aria-label="Poker Solver Lab"><a class="labhome" href="../"><svg viewBox="0 0 96 96" aria-hidden="true"><circle cx="48" cy="48" r="44" fill="var(--lab-red)"/><circle cx="48" cy="48" r="44" fill="none" stroke="var(--bg)" stroke-width="7" stroke-dasharray="17.3 17.3" transform="rotate(-11 48 48)"/><circle cx="48" cy="48" r="29" fill="var(--bg)"/><path d="M48 31c-5 7-14 11-14 18.5 0 4.6 3.6 7.8 7.7 7.8 2.3 0 4.2-1 5.3-2.6-.4 3.6-1.9 6.7-4.6 9.3h11.2c-2.7-2.6-4.2-5.7-4.6-9.3 1.1 1.6 3 2.6 5.3 2.6 4.1 0 7.7-3.2 7.7-7.8C62 42 53 38 48 31z" fill="var(--ink)"/></svg><span>Poker <em>Solver</em> Lab</span></a><a class="laball" href="../">All tools ↗</a></nav>
 <!--/LAB-A-->
+<style>
+/* Live play: actions should land instantly, so buttons appear at once and cards deal quickly. */
+@media (prefers-reduced-motion: no-preference) {
+  .actions .act, .actions > button { animation: none; }
+  .pc.lab-deal { animation-duration: 0.22s; animation-delay: calc(var(--lab-d, 0ms) * 0.4); }
+  .pc.lab-flip { animation-duration: 0.25s; animation-delay: calc(var(--lab-d, 0ms) * 0.4); }
+}
+</style>
   <header>
     <div>
       <div class="eyebrow" id="eyebrow">Play with friends · no-limit hold'em · play chips</div>
@@ -624,7 +632,14 @@ button:active:not(:disabled) { transform: scale(0.96); }
     store.set('room:' + code, { T, at: lastSave });
     store.set('hosting', { code, at: lastSave });
   }
-  setInterval(() => { if (mode === 'host' && T && E.tick(T, Date.now())) changed(); }, 250);
+  // Browsers slow down timers in background tabs, but not in workers, so the host's clock runs in one.
+  function every(ms, fn) {
+    try {
+      const w = new Worker(URL.createObjectURL(new Blob([`setInterval(() => postMessage(0), ${ms})`], { type: 'text/javascript' })));
+      w.onmessage = fn;
+    } catch { setInterval(fn, ms); }
+  }
+  every(250, () => { if (mode === 'host' && T && E.tick(T, Date.now())) changed(); });
 
   async function registerRoom(c, retries) {
     for (let i = 0; ; i++) {
@@ -671,7 +686,7 @@ button:active:not(:disabled) { transform: scale(0.96); }
     link = l;
     l.onmsg = (m) => {
       if (!m) return;
-      if (m.t === 'state') { V = m.v; offset = m.v.now - Date.now(); setStatus('Connected'); render(); }
+      if (m.t === 'state') { V = m.v; offset = m.v.now - Date.now(); pending = false; setStatus('Connected'); render(); }
       else if (m.t === 'toast') toast(m.text);
       else if (m.t === 'error' && m.fatal) { store.del('joined'); leave(); showHomeMsg('j-msg', m.text); }
     };
@@ -851,13 +866,12 @@ button:active:not(:disabled) { transform: scale(0.96); }
   }
 
   // Action bar. Rebuilt only when the decision changes, so dragging the bet slider isn't reset by updates.
-  let lastActSig = '', wasMyTurn = false, raiseTo = 0;
+  let lastActSig = '', wasMyTurn = false, raiseTo = 0, pending = false;
   function renderActions() {
     const L = V.legal, H = V.hand, ms = mySeat(), s = ms >= 0 ? V.seats[ms] : null;
     const sig = JSON.stringify([L, H && H.no, H && H.phase, ms, s && s.sittingOut, s && s.stack, s && s.shown, V.canRebuy, V.started, V.paused, V.canStart, s && s.cards && s.cards.join()]);
     const myTurn = !!L && !V.paused;
-    if (myTurn && !wasMyTurn) notifyTurn();
-    wasMyTurn = myTurn;
+    if (!pending) { if (myTurn && !wasMyTurn) notifyTurn(); wasMyTurn = myTurn; }
     updateClock();
     if (sig === lastActSig) return;
     lastActSig = sig;
@@ -926,9 +940,24 @@ button:active:not(:disabled) { transform: scale(0.96); }
     if (kind === 'allin') a = { type: 'raise', to: L.raise.max };
     else if (kind === 'raise') a = { type: 'raise', to: raiseTo };
     else a = { type: kind };
-    for (const b of $('actions').querySelectorAll('button')) b.disabled = true;
     send({ t: 'act', a });
+    if (mode === 'client' && link) predict(a, L);
   }
+  // Show your own action right away instead of waiting a network round trip for the host to confirm it.
+  // The host's next update replaces this guess (and undoes it if the host refused the action).
+  function predict(a, L) {
+    const ms = mySeat(), s = V.seats[ms], H = V.hand;
+    if (!s || !H) return;
+    const put = (x) => { s.stack -= x; s.bet += x; s.total += x; H.pot += x; H.bets += x; };
+    if (a.type === 'fold') { s.folded = true; s.last = 'Fold'; }
+    else if (a.type === 'check') s.last = 'Check';
+    else if (a.type === 'call') { put(L.call); s.last = s.stack === 0 ? 'All-in' : `Call ${fmt(s.bet)}`; }
+    else { put(Math.max(L.raise.min, Math.min(L.raise.max, a.to)) - s.bet); s.last = s.stack === 0 ? 'All-in' : `${L.raise.bet ? 'Bet' : 'Raise'} ${fmt(s.bet)}`; }
+    if (s.stack === 0) s.allin = true;
+    V.legal = null; H.toAct = -1; pending = true;
+    render();
+  }
+
   $('actions').addEventListener('click', (e) => { const b = e.target.closest('button[data-a]'); if (b) doAct(b.dataset.a); });
 
   function clockText(ms) { const s = Math.max(0, Math.ceil(ms / 1000)); return s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : s + 's'; }
@@ -942,6 +971,7 @@ button:active:not(:disabled) { transform: scale(0.96); }
         ? (V.canStart ? `<b>${seated} players seated.</b> Start the game when everyone's in.` : `Send your friends the room code <b>${code}</b>. You can start once two players have a seat.`)
         : `Waiting for the host to start the game.${ms < 0 ? ' Pick a seat to play.' : ''}`;
     } else if (V.paused) story = 'The game is paused.';
+    else if (pending) story = 'Waiting for the next player.';
     else if (H && H.phase === 'betting' && H.toAct >= 0) {
       const who = H.toAct === ms ? '<b>Your turn.</b>' : `Waiting for <b>${esc(seatName(H.toAct))}</b>.`;
       let clock = '';
