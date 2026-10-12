@@ -1,0 +1,974 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Browse the heads-up solver's strategy for any board and betting line.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Ccircle cx='48' cy='48' r='44' fill='%23dc4c55'/%3E%3Ccircle cx='48' cy='48' r='44' fill='none' stroke='%23fff' stroke-width='7' stroke-dasharray='17.3 17.3' transform='rotate(-11 48 48)'/%3E%3Ccircle cx='48' cy='48' r='29' fill='%23fff'/%3E%3Cpath d='M48 31c-5 7-14 11-14 18.5 0 4.6 3.6 7.8 7.7 7.8 2.3 0 4.2-1 5.3-2.6-.4 3.6-1.9 6.7-4.6 9.3h11.2c-2.7-2.6-4.2-5.7-4.6-9.3 1.1 1.6 3 2.6 5.3 2.6 4.1 0 7.7-3.2 7.7-7.8C62 42 53 38 48 31z' fill='%2314181d'/%3E%3C/svg%3E">
+<title>Heads-Up Spot Explorer</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: board and betting line across the top; the range grid on the left; totals and hand detail on the right. */
+:root {
+  --bg: #edf0f2;
+  --surface: #f9fafb;
+  --ink: #14181d;
+  --muted: #5b6470;
+  --line: #d5dbe1;
+  --bet: #c2333b;
+  --bet2: #8e1f2a;
+  --bet3: #5e1420;
+  --jam: #6b3fa0;
+  --call: #23855a;
+  --fold: #c3ccd5;
+  --empty: #e2e7ec;
+  --on-action: #ffffff;
+  --display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
+  --body: "Barlow", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1316; --surface: #171c21; --ink: #e6eaee; --muted: #8d97a3; --line: #28303a;
+    --bet: #dc4c55; --bet2: #a8323c; --bet3: #7d2430; --jam: #9467c9; --call: #35a873; --fold: #3a4550; --empty: #1d242b; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1316; --surface: #171c21; --ink: #e6eaee; --muted: #8d97a3; --line: #28303a;
+  --bet: #dc4c55; --bet2: #a8323c; --bet3: #7d2430; --jam: #9467c9; --call: #35a873; --fold: #3a4550; --empty: #1d242b; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.45; padding-inline: 16px; padding-block: 20px 48px; }
+.wrap { max-width: 1200px; margin: 0 auto; display: grid; gap: 16px; }
+.eyebrow { font: 600 12px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 2px 0 0; font: 700 clamp(32px, 5.5vw, 50px)/0.95 var(--display); letter-spacing: -0.01em; text-transform: uppercase; text-wrap: balance; }
+h1 em { font-style: normal; color: var(--bet); }
+header { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px 20px; flex-wrap: wrap; }
+h2 { margin: 0 0 10px; font: 700 19px/1.1 var(--display); text-transform: uppercase; letter-spacing: 0.02em; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+h2 .num { font: 12px var(--mono); color: var(--muted); text-transform: none; letter-spacing: 0; }
+button { font: 600 14px/1 var(--body); color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.label { font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; }
+.hint { margin: 0; font-size: 13px; color: var(--muted); }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+.top { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 860px) { .top { grid-template-columns: minmax(0, 1fr); } }
+.boardrow { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.slot { width: 46px; aspect-ratio: 5 / 7; border-radius: 7px; border: 1px dashed var(--line); background: transparent; padding: 3px 5px; display: grid; grid-template-rows: auto 1fr; color: var(--suit); cursor: pointer; }
+.slot.filled { background: #fff; border: 1px solid #c9ced4; }
+.slot.later { opacity: 0.45; }
+.slot.sel { outline: 2px solid var(--ink); outline-offset: 2px; }
+.slot .r { font: 700 17px/1 var(--display); }
+.slot .s { font-size: 19px; line-height: 1; place-self: center; }
+.s0 { --suit: #1c1f24; } .h { --suit: #c92a2a; } .d { --suit: #1c6fd1; } .c { --suit: #2b8a3e; }
+.picker { display: grid; grid-template-columns: repeat(13, minmax(0, 1fr)); gap: 3px; margin-top: 10px; max-width: 520px; }
+.picker button { padding: 4px 0; font: 600 13px var(--mono); color: var(--suit); background: #fff; border-color: #c9ced4; }
+.picker button:disabled { opacity: 0.25; cursor: default; }
+.line { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.crumb { font: 500 13px var(--body); padding: 5px 9px; border-radius: 99px; border: 1px solid var(--line); background: var(--bg); }
+.crumb b { font-weight: 600; }
+.crumb.street { background: transparent; border: 0; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding-inline: 2px; }
+.next { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center; }
+.next button { color: var(--on-action); background: var(--c); border-color: var(--c); }
+.next button.fold { color: var(--ink); }
+
+.mainrow { display: grid; grid-template-columns: minmax(0, 640px) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 960px) { .mainrow { grid-template-columns: minmax(0, 1fr); } }
+.grid13 { display: grid; grid-template-columns: repeat(13, minmax(0, 1fr)); gap: 2px; }
+.cell { position: relative; aspect-ratio: 1; border-radius: 3px; overflow: hidden; background: var(--empty); border: 0; padding: 0; cursor: pointer; }
+.cell .fill { position: absolute; left: 0; right: 0; bottom: 0; }
+.cell .nm { position: relative; z-index: 1; display: grid; place-items: center; height: 100%; font: 600 clamp(8px, 1.1vw, 12px)/1 var(--mono); letter-spacing: -0.03em; color: var(--ink); text-shadow: 0 0 3px var(--surface); }
+.cell.sel { outline: 2px solid var(--ink); outline-offset: 1px; z-index: 2; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--muted); margin-top: 10px; }
+.legend i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; vertical-align: -1px; margin-right: 5px; background: var(--c); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; padding: 6px 10px; font-size: 13px; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.side { display: grid; gap: 16px; min-width: 0; }
+.mix { display: grid; gap: 7px; }
+.mixrow { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 48px 62px; gap: 8px; align-items: center; font-size: 13px; }
+.mixrow .bar { height: 9px; border-radius: 99px; background: var(--empty); overflow: hidden; }
+.mixrow .bar div { height: 100%; border-radius: 99px; background: var(--c); }
+.mixrow .num { text-align: right; font-size: 12px; }
+.combos { display: grid; gap: 6px; max-height: 340px; overflow-y: auto; }
+.combo { display: grid; grid-template-columns: 56px minmax(0, 1fr) 44px; gap: 8px; align-items: center; font: 13px var(--mono); }
+.combo .stack { display: flex; height: 12px; border-radius: 3px; overflow: hidden; background: var(--empty); }
+.combo .stack div { height: 100%; background: var(--c); }
+.combo .w { text-align: right; color: var(--muted); font-size: 12px; }
+.status { font-size: 14px; }
+.method { font-size: 13px; color: var(--muted); margin: 0; max-width: 90ch; }
+</style>
+
+<!--LAB-A-->
+<style id="lab-polish">
+/* Poker Solver Lab polish layer: shared top bar, depth, table rail, and motion for every tool page.
+   Injected after each page's own styles, so equal-specificity rules here win. */
+:root { --lab-red: #c2333b; --lab-rail: #2b3036; --lab-rail-hi: #474e57; --lab-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 12px 30px -20px rgba(20, 24, 29, 0.45); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --lab-red: #dc4c55; --lab-rail: #181c21; --lab-rail-hi: #2e353e; --lab-shadow: 0 1px 0 rgba(255, 255, 255, 0.035) inset, 0 16px 36px -22px rgba(0, 0, 0, 0.9); }
+}
+:root[data-theme="dark"] { --lab-red: #dc4c55; --lab-rail: #181c21; --lab-rail-hi: #2e353e; --lab-shadow: 0 1px 0 rgba(255, 255, 255, 0.035) inset, 0 16px 36px -22px rgba(0, 0, 0, 0.9); }
+
+body { background: radial-gradient(1100px 440px at 50% -180px, color-mix(in srgb, var(--lab-red) 10%, transparent), transparent 72%) no-repeat, var(--bg); }
+
+/* Top bar back to the hub */
+.labbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.labhome { display: inline-flex; gap: 10px; align-items: center; color: var(--ink); text-decoration: none; font: 700 19px/1 var(--display); text-transform: uppercase; letter-spacing: 0.02em; }
+.labhome em { font-style: normal; color: var(--lab-red); }
+.labhome svg { width: 30px; height: 30px; flex: none; transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.labhome:hover svg { transform: rotate(180deg); }
+.labhome:focus-visible, .laball:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 6px; }
+.laball { font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); text-decoration: none; padding: 7px 12px; border: 1px solid var(--line); border-radius: 99px; white-space: nowrap; transition: color 0.15s, border-color 0.15s; }
+.laball:hover { color: var(--ink); border-color: var(--muted); }
+
+/* Panels and controls */
+.card { box-shadow: var(--lab-shadow); }
+button { transition: transform 0.12s ease, background-color 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.2s, filter 0.15s; }
+button:active:not(:disabled) { transform: scale(0.96); }
+.seg { box-shadow: var(--lab-shadow); }
+.seg button[aria-pressed="true"] { box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12) inset; }
+.act { background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(0, 0, 0, 0.07)); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.2) inset, 0 10px 20px -12px rgba(0, 0, 0, 0.65); }
+.act:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.07); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.2) inset, 0 16px 26px -14px rgba(0, 0, 0, 0.7); }
+.act:active:not(:disabled) { transform: translateY(0) scale(0.96); }
+.act.fold, .act.fold:hover { background-image: none; }
+
+/* Table: felt texture, light pool and a padded rail */
+.table, .felt {
+  position: relative;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse at 50% 38%, color-mix(in srgb, var(--felt) 80%, white) 0%, var(--felt) 55%, var(--felt-edge) 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06), inset 0 0 70px rgba(0, 0, 0, 0.38), 0 0 0 9px var(--lab-rail), 0 0 0 10px var(--lab-rail-hi), 0 26px 50px -26px rgba(0, 0, 0, 0.75);
+  margin: 10px;
+  border-color: transparent;
+}
+
+/* 6-max seats: pill-shaped pods; yours gets a ring */
+.felt .seat .tag { background: rgba(6, 10, 12, 0.55); border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 99px; padding: 6px 12px; box-shadow: 0 8px 16px -10px rgba(0, 0, 0, 0.8); }
+.felt .seat.hero .tag { background: var(--surface); color: var(--ink); border-color: transparent; box-shadow: 0 0 0 3px color-mix(in srgb, var(--lab-red) 70%, transparent), 0 10px 20px -10px rgba(0, 0, 0, 0.8); }
+.felt .seat .stake { background: rgba(0, 0, 0, 0.3); padding: 2px 8px; border-radius: 99px; }
+.felt .seat .stake:empty { display: none; }
+.felt .seat .chip:not(:empty) { display: inline-flex; align-items: center; gap: 5px; box-shadow: 0 6px 12px -8px rgba(0, 0, 0, 0.9); }
+.felt .seat .chip:not(:empty)::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35); }
+.felt .dealer { box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25), 0 3px 6px rgba(0, 0, 0, 0.5); }
+.pot { text-shadow: 0 2px 10px rgba(0, 0, 0, 0.45); }
+
+/* Cards */
+.pc:not(.slot):not(.back) { background: linear-gradient(165deg, #ffffff 0%, #f3f5f7 100%); box-shadow: 0 1px 0 #ffffff inset, 0 2px 3px rgba(0, 0, 0, 0.16), 0 12px 20px -12px rgba(0, 0, 0, 0.75); }
+.pc.back {
+  background-color: #a3373f;
+  background-image: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.13) 0 2px, transparent 2px 8px), repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.13) 0 2px, transparent 2px 8px);
+  box-shadow: inset 0 0 0 3px #a3373f, inset 0 0 0 4.5px rgba(255, 255, 255, 0.55), 0 12px 20px -12px rgba(0, 0, 0, 0.75);
+}
+.pc { animation: none; }
+.pc.slot { border-color: rgba(255, 255, 255, 0.22); background: rgba(0, 0, 0, 0.1); }
+
+.stats b, .pot, .potline { transform-origin: left center; }
+.pot { transform-origin: center; }
+.banner { box-shadow: 0 14px 30px -18px rgba(0, 0, 0, 0.8); backdrop-filter: blur(2px); }
+
+/* Grade toast */
+.labtoast { position: absolute; left: 50%; top: 50%; z-index: 30; pointer-events: none; display: inline-flex; align-items: center; gap: 10px; padding: 10px 18px 10px 12px; border-radius: 99px; background: var(--surface); color: var(--v, var(--ink)); border: 2px solid var(--v, var(--line)); font: 700 22px/1 var(--display); text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; box-shadow: 0 20px 40px -18px rgba(0, 0, 0, 0.75); transform: translate(-50%, -50%); }
+.labtoast i { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--v, var(--ink)); color: var(--surface); font: 700 16px/1 var(--body); font-style: normal; }
+.labtoast.fixed { position: fixed; top: 96px; }
+.labtoast.out { opacity: 0; transition: opacity 0.35s ease; }
+
+/* Explorer grids */
+.grid13 .cell { transition: transform 0.12s ease, box-shadow 0.12s ease; }
+.grid13 .cell:hover { transform: scale(1.14); z-index: 3; position: relative; box-shadow: 0 8px 16px -8px rgba(0, 0, 0, 0.7); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .wrap > header, .wrap > .labbar { animation: lab-rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .wrap > header { animation-delay: 60ms; }
+  .card { animation: lab-rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .side > .card:nth-child(2), .main > .card:nth-child(2) { animation-delay: 70ms; }
+  .side > .card:nth-child(3), .main > .card:nth-child(3) { animation-delay: 140ms; }
+  .side > .card:nth-child(4), .main > .card:nth-child(4) { animation-delay: 210ms; }
+  .side > .card:nth-child(5), .main > .card:nth-child(5) { animation-delay: 280ms; }
+  .table, .felt { animation: lab-table 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+  .actions .act, .actions > button { animation: lab-pop 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.3) backwards; }
+  .actions > :nth-child(2) { animation-delay: 40ms; }
+  .actions > :nth-child(3) { animation-delay: 80ms; }
+  .actions > :nth-child(4) { animation-delay: 120ms; }
+  .actions > :nth-child(5) { animation-delay: 160ms; }
+  .actions > :nth-child(6) { animation-delay: 200ms; }
+
+  .pc.lab-deal { animation: lab-deal 0.46s cubic-bezier(0.2, 0.9, 0.3, 1.15) backwards; animation-delay: var(--lab-d, 0ms); }
+  .pc.lab-flip { animation: lab-flip 0.5s cubic-bezier(0.3, 0.7, 0.3, 1) backwards; animation-delay: var(--lab-d, 0ms); }
+  .lab-pop { animation: lab-pop 0.38s cubic-bezier(0.2, 0.9, 0.3, 1.4); }
+  .lab-bump { animation: lab-bump 0.5s ease; }
+  .banner:not([hidden]) { animation: lab-pop 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.3); }
+  .mixrow .bar div, .streetrow .bar div, .evtable .bar div, .mix .bar div { transform-origin: left center; animation: lab-grow 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+  .labtoast { animation: lab-toast 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.35); }
+}
+@keyframes lab-rise { from { opacity: 0; transform: translateY(18px); } }
+@keyframes lab-table { from { opacity: 0; transform: scale(0.97); } }
+@keyframes lab-pop { from { opacity: 0; transform: scale(0.8); } }
+@keyframes lab-deal { from { opacity: 0; transform: translate(0, -34px) rotate(-12deg) scale(0.8); } 55% { opacity: 1; } }
+@keyframes lab-flip { from { transform: perspective(400px) rotateY(90deg); } }
+@keyframes lab-bump { 30% { transform: scale(1.1); } }
+@keyframes lab-grow { from { transform: scaleX(0); } }
+@keyframes lab-toast { from { opacity: 0; transform: translate(-50%, -50%) scale(0.6); } }
+
+@media (max-width: 520px) {
+  .labhome { font-size: 16px; } .labhome svg { width: 26px; height: 26px; }
+  .table, .felt { margin: 8px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06), inset 0 0 50px rgba(0, 0, 0, 0.38), 0 0 0 6px var(--lab-rail), 0 0 0 7px var(--lab-rail-hi), 0 20px 40px -24px rgba(0, 0, 0, 0.75); }
+  .labtoast { font-size: 18px; }
+}
+</style>
+<div class="wrap">
+  <nav class="labbar" aria-label="Poker Solver Lab"><a class="labhome" href="../"><svg viewBox="0 0 96 96" aria-hidden="true"><circle cx="48" cy="48" r="44" fill="var(--lab-red)"/><circle cx="48" cy="48" r="44" fill="none" stroke="var(--bg)" stroke-width="7" stroke-dasharray="17.3 17.3" transform="rotate(-11 48 48)"/><circle cx="48" cy="48" r="29" fill="var(--bg)"/><path d="M48 31c-5 7-14 11-14 18.5 0 4.6 3.6 7.8 7.7 7.8 2.3 0 4.2-1 5.3-2.6-.4 3.6-1.9 6.7-4.6 9.3h11.2c-2.7-2.6-4.2-5.7-4.6-9.3 1.1 1.6 3 2.6 5.3 2.6 4.1 0 7.7-3.2 7.7-7.8C62 42 53 38 48 31z" fill="var(--ink)"/></svg><span>Poker <em>Solver</em> Lab</span></a><a class="laball" href="../">All tools ↗</a></nav>
+<!--/LAB-A-->
+  <header>
+    <div>
+      <div class="eyebrow" id="eyebrow">Heads-up no-limit hold'em · 100bb · solver strategy browser</div>
+      <h1>Heads-Up <em>Spot</em> Explorer</h1>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center"><span class="label">Stacks</span>
+      <div class="seg" id="stackmode"><button data-v="100">100bb</button><button data-v="40">40bb</button><button data-v="20">20bb</button></div>
+    </div>
+  </header>
+
+  <div class="top">
+    <div class="card">
+      <h2>Board <button id="randboard">Random board</button></h2>
+      <div class="boardrow" id="board"></div>
+      <div class="picker" id="picker" hidden></div>
+      <p class="hint" id="boardhint" style="margin-top:8px">Click a card slot to change it.</p>
+    </div>
+    <div class="card">
+      <h2>Betting line <span class="num" id="pot"></span></h2>
+      <div class="line" id="line"></div>
+      <div class="next" id="next"></div>
+    </div>
+  </div>
+
+  <div class="mainrow">
+    <div class="card">
+      <h2 id="grid-title">Range</h2>
+      <div class="row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+        <span class="label">Show</span>
+        <div class="seg" id="mode"><button data-v="range">Hands in range</button><button data-v="all">Every hand</button></div>
+      </div>
+      <div class="grid13" id="grid"></div>
+      <div class="legend" id="legend"></div>
+      <p class="hint" style="margin-top:8px" id="gridhint"></p>
+    </div>
+    <div class="side">
+      <div class="card">
+        <h2>Whole range <span class="num" id="combos"></span></h2>
+        <div class="mix" id="totals"></div>
+      </div>
+      <div class="card">
+        <h2 id="hand-title">Hand detail</h2>
+        <div id="hand"></div>
+      </div>
+    </div>
+  </div>
+  <p class="method">This explorer reads the same solution as the Heads-Up Hold'em Trainer: Monte Carlo CFR on a simplified game with the bet sizes shown, the stack depth you pick (each depth is solved as its own game), and postflop hands grouped by equity against a random hand and how much it can swing (50 groups on the flop and turn, 30 on the river). Every combo in a group gets the same strategy, so suits only matter through the groups. "Hands in range" weights each combo by how often the player reaches this point with it, given the actions so far. EVs are the solver's training averages for the player to act, in big blinds from the start of the hand.</p>
+  <p class="method">Part of <a href="../" style="color:inherit;font-weight:600">Poker Solver Lab</a>, which links every trainer and explorer in one place.</p>
+</div>
+
+<script>
+// Hand evaluation and bucketing, a line-for-line port of hu.c so the page sees the same buckets the solver trained on.
+// Cards: rank*4 + suit, rank 0 = deuce .. 12 = ace.
+const STRAIGHT_HI = new Int8Array(8192);
+for (let m = 0; m < 8192; m++) {
+  const m2 = (m << 1) | ((m >> 12) & 1);
+  const s = m2 & (m2 >> 1) & (m2 >> 2) & (m2 >> 3) & (m2 >> 4);
+  STRAIGHT_HI[m] = s ? 31 - Math.clz32(s) : -1;
+}
+function topBits(mask, n) {
+  let v = 0, k = 0;
+  for (let r = 12; r >= 0 && k < n; r--) if ((mask >> r) & 1) { v = v * 16 + r; k++; }
+  return v;
+}
+const rc = new Int8Array(13), sm = new Int32Array(4), sc = new Int8Array(4);
+function eval7(c) {
+  rc.fill(0); sm.fill(0); sc.fill(0);
+  let m = 0;
+  for (let i = 0; i < c.length; i++) { const r = c[i] >> 2, s = c[i] & 3; rc[r]++; sm[s] |= 1 << r; sc[s]++; m |= 1 << r; }
+  for (let s = 0; s < 4; s++) if (sc[s] >= 5) {
+    const sh = STRAIGHT_HI[sm[s]];
+    if (sh >= 0) return (8 << 20) | sh;
+    return (5 << 20) | topBits(sm[s], 5);
+  }
+  let quad = -1, t1 = -1, t2 = -1, p1 = -1, p2 = -1;
+  for (let r = 12; r >= 0; r--) {
+    if (rc[r] === 4) quad = r;
+    else if (rc[r] === 3) { if (t1 < 0) t1 = r; else if (t2 < 0) t2 = r; }
+    else if (rc[r] === 2) { if (p1 < 0) p1 = r; else if (p2 < 0) p2 = r; }
+  }
+  if (quad >= 0) return (7 << 20) | (quad << 4) | topBits(m & ~(1 << quad), 1);
+  if (t1 >= 0 && (t2 >= 0 || p1 >= 0)) return (6 << 20) | (t1 << 4) | Math.max(t2, p1);
+  const sh = STRAIGHT_HI[m];
+  if (sh >= 0) return (4 << 20) | sh;
+  if (t1 >= 0) return (3 << 20) | (t1 << 8) | topBits(m & ~(1 << t1), 2);
+  if (p1 >= 0 && p2 >= 0) return (2 << 20) | (p1 << 8) | (p2 << 4) | topBits(m & ~(1 << p1) & ~(1 << p2), 1);
+  if (p1 >= 0) return (1 << 20) | (p1 << 12) | topBits(m & ~(1 << p1), 3);
+  return topBits(m, 5);
+}
+const CATEGORY = ['High card', 'Pair', 'Two pair', 'Three of a kind', 'Straight', 'Flush', 'Full house', 'Four of a kind', 'Straight flush'];
+
+function handClass(a, b) {
+  const r1 = 12 - (a >> 2), r2 = 12 - (b >> 2);
+  const hi = Math.min(r1, r2), lo = Math.max(r1, r2);
+  if (hi === lo) return hi * 13 + hi;
+  return (a & 3) === (b & 3) ? hi * 13 + lo : lo * 13 + hi;
+}
+
+// For each target hand, num = 2*wins + ties vs every opponent hand on this 5-card board (out of 1980).
+const scratch = new Int32Array(7);
+function riverNums(board5, targets) {
+  const used = new Uint8Array(52);
+  for (const c of board5) used[c] = 1;
+  const ranks = [], ha = [], hb = [];
+  for (let i = 0; i < 5; i++) scratch[i + 2] = board5[i];
+  for (let b = 1; b < 52; b++) {
+    if (used[b]) continue;
+    for (let a = 0; a < b; a++) {
+      if (used[a]) continue;
+      scratch[0] = a; scratch[1] = b;
+      ranks.push(eval7(scratch)); ha.push(a); hb.push(b);
+    }
+  }
+  return targets.map(([x, y]) => {
+    if (used[x] || used[y]) return -1;
+    scratch[0] = x; scratch[1] = y;
+    const me = eval7(scratch);
+    let num = 0;
+    for (let k = 0; k < ranks.length; k++) {
+      const a = ha[k], b = hb[k];
+      if (a === x || a === y || b === x || b === y) continue;
+      num += ranks[k] < me ? 2 : ranks[k] === me ? 1 : 0;
+    }
+    return num;
+  });
+}
+
+// Flop (3 cards) or turn (4 cards) features: S1 = sum of num over runouts, S2 = sum of num^2, cnt = runouts.
+function features(board, targets) {
+  const used = new Uint8Array(52);
+  for (const c of board) used[c] = 1;
+  const S1 = targets.map(() => 0), S2 = targets.map(() => 0), cnt = targets.map(() => 0);
+  const add = (b5, extra) => {
+    const nums = riverNums(b5, targets);
+    nums.forEach((v, i) => { if (v >= 0) { S1[i] += v; S2[i] += v * v; cnt[i]++; } });
+  };
+  if (board.length === 4) {
+    for (let r = 0; r < 52; r++) if (!used[r]) add([...board, r]);
+  } else {
+    for (let t = 0; t < 52; t++) {
+      if (used[t]) continue;
+      for (let r = t + 1; r < 52; r++) if (!used[r]) add([...board, t, r]);
+    }
+  }
+  return targets.map((_, i) => ({ S1: S1[i], S2: S2[i], cnt: cnt[i] }));
+}
+
+function bucketRiver(edges, num) { let b = 0; while (b < edges.river.length && num >= edges.river[b]) b++; return b; }
+
+// All buckets for both players for a full deal. holes = [[a,b],[c,d]], board = 5 cards.
+function dealBuckets(edges, holes, board) {
+  const VBn = edges.VB;
+  const out = holes.map(([a, b]) => ({ cls: handClass(a, b), flop: 0, turn: 0, river: 0, eq: [0, 0, 0], spread: [0, 0] }));
+  const ff = features(board.slice(0, 3), holes);
+  ff.forEach((f, i) => {
+    const V = f.cnt * f.S2 - f.S1 * f.S1;
+    out[i].flop = bucket2v(edges.flop, f.S1, V, VBn);
+    out[i].eq[0] = f.S1 / (f.cnt * 1980);
+    out[i].spread[0] = Math.sqrt(Math.max(0, V)) / (f.cnt * 1980);
+  });
+  const tf = features(board.slice(0, 4), holes);
+  tf.forEach((f, i) => {
+    const V = f.cnt * f.S2 - f.S1 * f.S1;
+    out[i].turn = bucket2v(edges.turn, f.S1, V, VBn);
+    out[i].eq[1] = f.S1 / (f.cnt * 1980);
+    out[i].spread[1] = Math.sqrt(Math.max(0, V)) / (f.cnt * 1980);
+  });
+  riverNums(board, holes).forEach((n, i) => { out[i].river = bucketRiver(edges, n); out[i].eq[2] = n / 1980; });
+  return out;
+}
+function bucket2v(e, S1, V, VBn) {
+  let b = 0; while (b < e.eh.length && S1 >= e.eh[b]) b++;
+  let v = 0; while (v < e.v[b].length && V >= e.v[b][v]) v++;
+  return b * VBn + v;
+}
+function showdownRank(hole, board) { return eval7([hole[0], hole[1], ...board]); }
+const evalCards = eval7;
+
+if (typeof module !== 'undefined') module.exports = { eval7, evalCards, handClass, riverNums, features, dealBuckets, showdownRank, CATEGORY };
+
+// ---------- all-hands bucketing (for the spot explorer) ----------
+// num for every one of the 1326 combos on a 5-card board, by sorting ranks once: same counts as riverNums.
+const HA = new Int8Array(1326), HB = new Int8Array(1326);
+for (let b = 1, h = 0; b < 52; b++) for (let a = 0; a < b; a++, h++) { HA[h] = a; HB[h] = b; }
+const hidx = (a, b) => (a < b ? (b * (b - 1)) / 2 + a : (a * (a - 1)) / 2 + b);
+function riverNumsAll(board5, out) {
+  const used = new Uint8Array(52); for (const c of board5) used[c] = 1;
+  const list = [];
+  for (let i = 0; i < 5; i++) scratch[i + 2] = board5[i];
+  for (let h = 0; h < 1326; h++) {
+    const a = HA[h], b = HB[h];
+    if (used[a] || used[b]) { out[h] = -1; continue; }
+    scratch[0] = a; scratch[1] = b; list.push([eval7(scratch), h]);
+  }
+  list.sort((x, y) => x[0] - y[0]);
+  const Wc = new Int32Array(52), Gc = new Int32Array(52); let W = 0;
+  for (let i = 0; i < list.length;) {
+    let j = i; while (j < list.length && list[j][0] === list[i][0]) j++;
+    const G = j - i;
+    for (let k = i; k < j; k++) { const h = list[k][1]; Gc[HA[h]]++; Gc[HB[h]]++; }
+    for (let k = i; k < j; k++) { const h = list[k][1], a = HA[h], b = HB[h]; out[h] = 2 * (W - Wc[a] - Wc[b]) + (G - Gc[a] - Gc[b] + 1); }
+    for (let k = i; k < j; k++) { const h = list[k][1], a = HA[h], b = HB[h]; Gc[a]--; Gc[b]--; Wc[a]++; Wc[b]++; }
+    W += G; i = j;
+  }
+}
+// Buckets for all 1326 combos on a board of 3, 4 or 5 cards; -1 where a combo uses a board card.
+function allBuckets(edges, board) {
+  const out = new Int16Array(1326).fill(-1), eq = new Float32Array(1326);
+  const num = new Int32Array(1326);
+  if (board.length === 5) {
+    riverNumsAll(board, num);
+    for (let h = 0; h < 1326; h++) if (num[h] >= 0) { out[h] = bucketRiver(edges, num[h]); eq[h] = num[h] / 1980; }
+    return { bucket: out, eq };
+  }
+  const S1 = new Float64Array(1326), S2 = new Float64Array(1326), cnt = new Int32Array(1326);
+  const used = new Uint8Array(52); for (const c of board) used[c] = 1;
+  const add = (b5) => { riverNumsAll(b5, num); for (let h = 0; h < 1326; h++) if (num[h] >= 0) { S1[h] += num[h]; S2[h] += num[h] * num[h]; cnt[h]++; } };
+  if (board.length === 4) { for (let r = 0; r < 52; r++) if (!used[r]) add([...board, r]); }
+  else { for (let t = 0; t < 52; t++) { if (used[t]) continue; for (let r = t + 1; r < 52; r++) if (!used[r]) add([...board, t, r]); } }
+  const e = board.length === 3 ? edges.flop : edges.turn;
+  for (let h = 0; h < 1326; h++) {
+    if (used[HA[h]] || used[HB[h]]) continue;
+    const V = cnt[h] * S2[h] - S1[h] * S1[h];
+    out[h] = bucket2v(e, S1[h], V, edges.VB); eq[h] = S1[h] / (cnt[h] * 1980);
+  }
+  return { bucket: out, eq };
+}
+if (typeof module !== 'undefined') Object.assign(module.exports, { allBuckets, riverNumsAll, HA, HB, hidx });
+
+</script>
+<script type="text/plain" id="engine-src">
+// Hand evaluation and bucketing, a line-for-line port of hu.c so the page sees the same buckets the solver trained on.
+// Cards: rank*4 + suit, rank 0 = deuce .. 12 = ace.
+const STRAIGHT_HI = new Int8Array(8192);
+for (let m = 0; m < 8192; m++) {
+  const m2 = (m << 1) | ((m >> 12) & 1);
+  const s = m2 & (m2 >> 1) & (m2 >> 2) & (m2 >> 3) & (m2 >> 4);
+  STRAIGHT_HI[m] = s ? 31 - Math.clz32(s) : -1;
+}
+function topBits(mask, n) {
+  let v = 0, k = 0;
+  for (let r = 12; r >= 0 && k < n; r--) if ((mask >> r) & 1) { v = v * 16 + r; k++; }
+  return v;
+}
+const rc = new Int8Array(13), sm = new Int32Array(4), sc = new Int8Array(4);
+function eval7(c) {
+  rc.fill(0); sm.fill(0); sc.fill(0);
+  let m = 0;
+  for (let i = 0; i < c.length; i++) { const r = c[i] >> 2, s = c[i] & 3; rc[r]++; sm[s] |= 1 << r; sc[s]++; m |= 1 << r; }
+  for (let s = 0; s < 4; s++) if (sc[s] >= 5) {
+    const sh = STRAIGHT_HI[sm[s]];
+    if (sh >= 0) return (8 << 20) | sh;
+    return (5 << 20) | topBits(sm[s], 5);
+  }
+  let quad = -1, t1 = -1, t2 = -1, p1 = -1, p2 = -1;
+  for (let r = 12; r >= 0; r--) {
+    if (rc[r] === 4) quad = r;
+    else if (rc[r] === 3) { if (t1 < 0) t1 = r; else if (t2 < 0) t2 = r; }
+    else if (rc[r] === 2) { if (p1 < 0) p1 = r; else if (p2 < 0) p2 = r; }
+  }
+  if (quad >= 0) return (7 << 20) | (quad << 4) | topBits(m & ~(1 << quad), 1);
+  if (t1 >= 0 && (t2 >= 0 || p1 >= 0)) return (6 << 20) | (t1 << 4) | Math.max(t2, p1);
+  const sh = STRAIGHT_HI[m];
+  if (sh >= 0) return (4 << 20) | sh;
+  if (t1 >= 0) return (3 << 20) | (t1 << 8) | topBits(m & ~(1 << t1), 2);
+  if (p1 >= 0 && p2 >= 0) return (2 << 20) | (p1 << 8) | (p2 << 4) | topBits(m & ~(1 << p1) & ~(1 << p2), 1);
+  if (p1 >= 0) return (1 << 20) | (p1 << 12) | topBits(m & ~(1 << p1), 3);
+  return topBits(m, 5);
+}
+const CATEGORY = ['High card', 'Pair', 'Two pair', 'Three of a kind', 'Straight', 'Flush', 'Full house', 'Four of a kind', 'Straight flush'];
+
+function handClass(a, b) {
+  const r1 = 12 - (a >> 2), r2 = 12 - (b >> 2);
+  const hi = Math.min(r1, r2), lo = Math.max(r1, r2);
+  if (hi === lo) return hi * 13 + hi;
+  return (a & 3) === (b & 3) ? hi * 13 + lo : lo * 13 + hi;
+}
+
+// For each target hand, num = 2*wins + ties vs every opponent hand on this 5-card board (out of 1980).
+const scratch = new Int32Array(7);
+function riverNums(board5, targets) {
+  const used = new Uint8Array(52);
+  for (const c of board5) used[c] = 1;
+  const ranks = [], ha = [], hb = [];
+  for (let i = 0; i < 5; i++) scratch[i + 2] = board5[i];
+  for (let b = 1; b < 52; b++) {
+    if (used[b]) continue;
+    for (let a = 0; a < b; a++) {
+      if (used[a]) continue;
+      scratch[0] = a; scratch[1] = b;
+      ranks.push(eval7(scratch)); ha.push(a); hb.push(b);
+    }
+  }
+  return targets.map(([x, y]) => {
+    if (used[x] || used[y]) return -1;
+    scratch[0] = x; scratch[1] = y;
+    const me = eval7(scratch);
+    let num = 0;
+    for (let k = 0; k < ranks.length; k++) {
+      const a = ha[k], b = hb[k];
+      if (a === x || a === y || b === x || b === y) continue;
+      num += ranks[k] < me ? 2 : ranks[k] === me ? 1 : 0;
+    }
+    return num;
+  });
+}
+
+// Flop (3 cards) or turn (4 cards) features: S1 = sum of num over runouts, S2 = sum of num^2, cnt = runouts.
+function features(board, targets) {
+  const used = new Uint8Array(52);
+  for (const c of board) used[c] = 1;
+  const S1 = targets.map(() => 0), S2 = targets.map(() => 0), cnt = targets.map(() => 0);
+  const add = (b5, extra) => {
+    const nums = riverNums(b5, targets);
+    nums.forEach((v, i) => { if (v >= 0) { S1[i] += v; S2[i] += v * v; cnt[i]++; } });
+  };
+  if (board.length === 4) {
+    for (let r = 0; r < 52; r++) if (!used[r]) add([...board, r]);
+  } else {
+    for (let t = 0; t < 52; t++) {
+      if (used[t]) continue;
+      for (let r = t + 1; r < 52; r++) if (!used[r]) add([...board, t, r]);
+    }
+  }
+  return targets.map((_, i) => ({ S1: S1[i], S2: S2[i], cnt: cnt[i] }));
+}
+
+function bucketRiver(edges, num) { let b = 0; while (b < edges.river.length && num >= edges.river[b]) b++; return b; }
+
+// All buckets for both players for a full deal. holes = [[a,b],[c,d]], board = 5 cards.
+function dealBuckets(edges, holes, board) {
+  const VBn = edges.VB;
+  const out = holes.map(([a, b]) => ({ cls: handClass(a, b), flop: 0, turn: 0, river: 0, eq: [0, 0, 0], spread: [0, 0] }));
+  const ff = features(board.slice(0, 3), holes);
+  ff.forEach((f, i) => {
+    const V = f.cnt * f.S2 - f.S1 * f.S1;
+    out[i].flop = bucket2v(edges.flop, f.S1, V, VBn);
+    out[i].eq[0] = f.S1 / (f.cnt * 1980);
+    out[i].spread[0] = Math.sqrt(Math.max(0, V)) / (f.cnt * 1980);
+  });
+  const tf = features(board.slice(0, 4), holes);
+  tf.forEach((f, i) => {
+    const V = f.cnt * f.S2 - f.S1 * f.S1;
+    out[i].turn = bucket2v(edges.turn, f.S1, V, VBn);
+    out[i].eq[1] = f.S1 / (f.cnt * 1980);
+    out[i].spread[1] = Math.sqrt(Math.max(0, V)) / (f.cnt * 1980);
+  });
+  riverNums(board, holes).forEach((n, i) => { out[i].river = bucketRiver(edges, n); out[i].eq[2] = n / 1980; });
+  return out;
+}
+function bucket2v(e, S1, V, VBn) {
+  let b = 0; while (b < e.eh.length && S1 >= e.eh[b]) b++;
+  let v = 0; while (v < e.v[b].length && V >= e.v[b][v]) v++;
+  return b * VBn + v;
+}
+function showdownRank(hole, board) { return eval7([hole[0], hole[1], ...board]); }
+const evalCards = eval7;
+
+if (typeof module !== 'undefined') module.exports = { eval7, evalCards, handClass, riverNums, features, dealBuckets, showdownRank, CATEGORY };
+
+// ---------- all-hands bucketing (for the spot explorer) ----------
+// num for every one of the 1326 combos on a 5-card board, by sorting ranks once: same counts as riverNums.
+const HA = new Int8Array(1326), HB = new Int8Array(1326);
+for (let b = 1, h = 0; b < 52; b++) for (let a = 0; a < b; a++, h++) { HA[h] = a; HB[h] = b; }
+const hidx = (a, b) => (a < b ? (b * (b - 1)) / 2 + a : (a * (a - 1)) / 2 + b);
+function riverNumsAll(board5, out) {
+  const used = new Uint8Array(52); for (const c of board5) used[c] = 1;
+  const list = [];
+  for (let i = 0; i < 5; i++) scratch[i + 2] = board5[i];
+  for (let h = 0; h < 1326; h++) {
+    const a = HA[h], b = HB[h];
+    if (used[a] || used[b]) { out[h] = -1; continue; }
+    scratch[0] = a; scratch[1] = b; list.push([eval7(scratch), h]);
+  }
+  list.sort((x, y) => x[0] - y[0]);
+  const Wc = new Int32Array(52), Gc = new Int32Array(52); let W = 0;
+  for (let i = 0; i < list.length;) {
+    let j = i; while (j < list.length && list[j][0] === list[i][0]) j++;
+    const G = j - i;
+    for (let k = i; k < j; k++) { const h = list[k][1]; Gc[HA[h]]++; Gc[HB[h]]++; }
+    for (let k = i; k < j; k++) { const h = list[k][1], a = HA[h], b = HB[h]; out[h] = 2 * (W - Wc[a] - Wc[b]) + (G - Gc[a] - Gc[b] + 1); }
+    for (let k = i; k < j; k++) { const h = list[k][1], a = HA[h], b = HB[h]; Gc[a]--; Gc[b]--; Wc[a]++; Wc[b]++; }
+    W += G; i = j;
+  }
+}
+// Buckets for all 1326 combos on a board of 3, 4 or 5 cards; -1 where a combo uses a board card.
+function allBuckets(edges, board) {
+  const out = new Int16Array(1326).fill(-1), eq = new Float32Array(1326);
+  const num = new Int32Array(1326);
+  if (board.length === 5) {
+    riverNumsAll(board, num);
+    for (let h = 0; h < 1326; h++) if (num[h] >= 0) { out[h] = bucketRiver(edges, num[h]); eq[h] = num[h] / 1980; }
+    return { bucket: out, eq };
+  }
+  const S1 = new Float64Array(1326), S2 = new Float64Array(1326), cnt = new Int32Array(1326);
+  const used = new Uint8Array(52); for (const c of board) used[c] = 1;
+  const add = (b5) => { riverNumsAll(b5, num); for (let h = 0; h < 1326; h++) if (num[h] >= 0) { S1[h] += num[h]; S2[h] += num[h] * num[h]; cnt[h]++; } };
+  if (board.length === 4) { for (let r = 0; r < 52; r++) if (!used[r]) add([...board, r]); }
+  else { for (let t = 0; t < 52; t++) { if (used[t]) continue; for (let r = t + 1; r < 52; r++) if (!used[r]) add([...board, t, r]); } }
+  const e = board.length === 3 ? edges.flop : edges.turn;
+  for (let h = 0; h < 1326; h++) {
+    if (used[HA[h]] || used[HB[h]]) continue;
+    const V = cnt[h] * S2[h] - S1[h] * S1[h];
+    out[h] = bucket2v(e, S1[h], V, edges.VB); eq[h] = S1[h] / (cnt[h] * 1980);
+  }
+  return { bucket: out, eq };
+}
+if (typeof module !== 'undefined') Object.assign(module.exports, { allBuckets, riverNumsAll, HA, HB, hidx });
+
+self.onmessage = (e) => {
+  const { id, edges, board } = e.data;
+  const out = [null, allBuckets(edges, board.slice(0, 3)), allBuckets(edges, board.slice(0, 4)), allBuckets(edges, board)];
+  self.postMessage({ id, out });
+};
+</script>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const A = { FOLD: 0, CHECK: 1, CALL: 2, BET: 3, RAISE: 4, ALLIN: 5 };
+  const RANKS = '23456789TJQKA', SUITS = [['♠', 's0'], ['♥', 'h'], ['♦', 'd'], ['♣', 'c']];
+  const GRID = 'AKQJT98765432', STREETS = ['Preflop', 'Flop', 'Turn', 'River'];
+  const PNAME = ['Button (SB)', 'Big blind'];
+  const className = (i) => { const r = Math.floor(i / 13), c = i % 13; return r === c ? GRID[r] + GRID[c] : c > r ? GRID[r] + GRID[c] + 's' : GRID[c] + GRID[r] + 'o'; };
+  const fmt = (x) => (Math.round(x * 10) / 10).toString();
+  const fmtEV = (v) => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2);
+  const pct = (x) => (x * 100).toFixed(x < 0.1 ? 1 : 0) + '%';
+  const cardStr = (c) => RANKS[c >> 2] + SUITS[c & 3][0];
+
+  // combos and classes
+  const HA = new Int8Array(1326), HB = new Int8Array(1326), CLS = new Int16Array(1326);
+  const byClass = Array.from({ length: 169 }, () => []);
+  for (let b = 1, h = 0; b < 52; b++) for (let a = 0; a < b; a++, h++) {
+    HA[h] = a; HB[h] = b;
+    const r1 = 12 - (a >> 2), r2 = 12 - (b >> 2), hi = Math.min(r1, r2), lo = Math.max(r1, r2);
+    CLS[h] = hi === lo ? hi * 13 + hi : (a & 3) === (b & 3) ? hi * 13 + lo : lo * 13 + hi;
+    byClass[CLS[h]].push(h);
+  }
+
+  let D = null, worker = null, wid = 0;
+  let board = [], buckets = null, path = [], mode = 'range', selClass = 0, picking = -1;
+
+  const DATA_FILES = { 100: ['../heads-up/hu-data.js', 'HU_DATA'], 40: ['../heads-up/hu-data-40.js', 'HU_DATA_40'], 20: ['../heads-up/hu-data-20.js', 'HU_DATA_20'] };
+  const cache = {};
+  function loadScript(src) {
+    return new Promise((res, rej) => { const el = document.createElement('script'); el.src = src; el.onload = res; el.onerror = () => rej(new Error('load ' + src)); document.head.appendChild(el); });
+  }
+  async function load(stack) {
+    if (cache[stack]) { D = cache[stack]; return; }
+    const [file, name] = DATA_FILES[stack];
+    if (!window[name]) await loadScript(file);
+    const bin = Uint8Array.from(atob(window[name]), (c) => c.charCodeAt(0));
+    window[name] = null;
+    const buf = await new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+    const dv = new DataView(buf), jl = dv.getUint32(0, true);
+    const meta = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 4, jl)));
+    let off = 4 + jl; const n = meta.nSlots;
+    const freq = new Uint8Array(buf, off, n); off += n; if (off % 2) off++;
+    const ev = new Int16Array(buf.slice(off, off + 2 * n)); off += 2 * n;
+    const cnt = new Uint8Array(buf, off, n);
+    D = cache[stack] = { tree: meta.tree, edges: meta.edges, freq, ev, cnt };
+    if (worker) return;
+    worker = new Worker(URL.createObjectURL(new Blob([$('engine-src').textContent], { type: 'text/javascript' })));
+    worker.onmessage = (e) => { if (e.data.id === wid) { buckets = e.data.out; render(); } };
+  }
+  const node = (id) => D.tree.nodes[id];
+  const STACK = () => D.tree.stack;
+
+  function setBoard(b) {
+    board = b; buckets = null;
+    worker.postMessage({ id: ++wid, edges: D.edges, board });
+    render();
+  }
+  function randomBoard() {
+    const d = [...Array(52).keys()];
+    for (let i = 51; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; }
+    setBoard(d.slice(0, 5));
+  }
+
+  // ---------- current node and ranges ----------
+  function currentNode() { let id = 0; for (const s of path) id = node(s.nid)[5][s.a][2]; return id; }
+  function streetStarts() {
+    const starts = [[0.5, 1]]; let id = 0, street = 0;
+    for (const s of path) { id = node(s.nid)[5][s.a][2]; if (id >= 0 && node(id)[1] !== street) { street = node(id)[1]; starts[street] = [node(id)[2], node(id)[3]]; } }
+    return starts;
+  }
+  function bucketOf(street, h) { return street === 0 ? CLS[h] : buckets ? buckets[street].bucket[h] : -1; }
+  // reach[p][h]: probability player p takes the path's actions with combo h
+  function reaches() {
+    const r = [new Float64Array(1326).fill(1), new Float64Array(1326).fill(1)];
+    for (const s of path) {
+      const N = node(s.nid), p = N[0], n = N[5].length;
+      for (let h = 0; h < 1326; h++) {
+        if (!r[p][h]) continue;
+        const b = bucketOf(N[1], h);
+        r[p][h] = b < 0 ? 0 : r[p][h] * (D.freq[N[4] + b * n + s.a] / 255);
+      }
+    }
+    return r;
+  }
+  function visibleBoard(street) { return board.slice(0, [0, 3, 4, 5][street]); }
+
+  function actionInfo(N, a) {
+    const [type, to] = N[5][a], p = N[0], c = [N[2], N[3]], s = N[1];
+    const start = streetStarts()[s] || c;
+    const toCall = c[1 - p] - c[p], pot = c[0] + c[1];
+    let name, color;
+    switch (type) {
+      case A.FOLD: name = 'Fold'; color = 'var(--fold)'; break;
+      case A.CHECK: name = 'Check'; color = 'var(--call)'; break;
+      case A.CALL: name = s === 0 && to === 1 && c[p] === 0.5 ? 'Limp' : `Call ${fmt(toCall)}`; color = 'var(--call)'; break;
+      case A.BET: { const f = (to - c[p]) / pot; name = `Bet ${fmt(to - start[p])} (${f < 0.5 ? '⅓' : f < 1 ? '¾' : '1.25×'} pot)`; color = f < 0.5 ? 'var(--bet)' : f < 1 ? 'var(--bet2)' : 'var(--bet3)'; break; }
+      case A.RAISE: name = s === 0 ? `Raise to ${fmt(to)}` : `Raise to ${fmt(to - start[p])}`; color = s === 0 && to <= 4 ? 'var(--bet)' : 'var(--bet2)'; break;
+      case A.ALLIN: name = 'All-in'; color = 'var(--jam)'; break;
+    }
+    return { name, color, type };
+  }
+  const typeRank = (t) => (t === A.FOLD ? 0 : t === A.CHECK || t === A.CALL ? 1 : t === A.ALLIN ? 3 : 2);
+
+  // ---------- rendering ----------
+  function cardHTML(c, cls = '') { const [sym, sc] = SUITS[c & 3]; return `<span class="r">${RANKS[c >> 2]}</span><span class="s">${sym}</span>`; }
+  function render() {
+    if (!D) return;
+    const nid = currentNode(), street = nid >= 0 ? node(nid)[1] : Math.max(0, ...path.map((s) => node(s.nid)[1]));
+    // board
+    $('board').innerHTML = board.map((c, i) => {
+      const later = i >= [0, 3, 4, 5][street];
+      return `<button class="slot filled ${SUITS[c & 3][1]}${later ? ' later' : ''}${picking === i ? ' sel' : ''}" data-i="${i}" aria-label="Board card ${i + 1}: ${cardStr(c)}">${cardHTML(c)}</button>`;
+    }).join('');
+    $('boardhint').textContent = street === 0 ? 'Preflop: the board does not matter yet. Click a card slot to change it.' : `Faded cards are not dealt yet at this point. Click a card slot to change it.`;
+    // line
+    let html = '', id = 0, s0 = -1;
+    path.forEach((s, i) => {
+      const N = node(s.nid);
+      if (N[1] !== s0) { s0 = N[1]; html += `<span class="crumb street">${STREETS[s0]}${s0 > 0 ? ' ' + visibleBoard(s0).slice(s0 === 1 ? 0 : -1).map(cardStr).join(' ') : ''}</span>`; }
+      html += `<button class="crumb" data-back="${i}" title="Go back to this decision"><b>${N[0] === 0 ? 'BTN' : 'BB'}</b> ${actionInfo(N, s.a).name.toLowerCase()}</button>`;
+    });
+    if (!path.length) html = '<span class="hint">Start of the hand. Choose an action below to walk the tree.</span>';
+    $('line').innerHTML = html;
+    if (nid < 0) {
+      const T = D.tree.terms[-nid - 1];
+      $('pot').textContent = `Pot ${fmt(T[2] + T[3])}bb`;
+      $('next').innerHTML = `<span class="status">${T[0] === 0 ? (T[1] === 0 ? 'The button folds.' : 'The big blind folds.') : 'Showdown.'} The hand is over. Click any step above to go back.</span>`;
+      $('grid').innerHTML = ''; $('totals').innerHTML = ''; $('hand').innerHTML = ''; $('legend').innerHTML = ''; $('combos').textContent = ''; $('gridhint').textContent = '';
+      $('grid-title').textContent = 'Hand over';
+      return;
+    }
+    const N = node(nid), p = N[0], acts = N[5], n = acts.length;
+    $('pot').textContent = `Pot ${fmt(N[2] + N[3])}bb · ${PNAME[p]} to act`;
+    $('next').innerHTML = acts.map((_, a) => { const I = actionInfo(N, a); return `<button data-a="${a}" class="${I.type === A.FOLD ? 'fold' : ''}" style="--c:${I.color}">${I.name}</button>`; }).join('');
+    $('grid-title').textContent = `${PNAME[p]}: ${STREETS[N[1]].toLowerCase()} strategy`;
+    if (N[1] > 0 && !buckets) { $('grid').innerHTML = '<p class="hint" style="grid-column:1/-1">Grouping every hand on this board…</p>'; return; }
+    const order = acts.map((_, a) => a).sort((x, y) => typeRank(acts[y][0]) - typeRank(acts[x][0]) || acts[y][1] - acts[x][1]);
+    const info = acts.map((_, a) => actionInfo(N, a));
+    $('legend').innerHTML = order.map((a) => `<span><i style="--c:${info[a].color}"></i>${info[a].name}</span>`).join('');
+    const reach = reaches()[p], vis = new Set(visibleBoard(N[1]));
+    const blocked = (h) => vis.has(HA[h]) || vis.has(HB[h]);
+    const w = (h) => (blocked(h) ? 0 : mode === 'all' ? 1 : reach[h]);
+    // per class
+    let cells = '', totW = 0;
+    const tot = new Float64Array(n), totEV = new Float64Array(n), evW = new Float64Array(n);
+    for (let cl = 0; cl < 169; cl++) {
+      const mix = new Float64Array(n); let cw = 0;
+      for (const h of byClass[cl]) {
+        const ww = w(h); if (!ww) continue;
+        const b = bucketOf(N[1], h); if (b < 0) continue;
+        const base = N[4] + b * n;
+        for (let a = 0; a < n; a++) { const f = D.freq[base + a] / 255; mix[a] += ww * f; tot[a] += ww * f; if (D.cnt[base] >= 40) { totEV[a] += ww * D.ev[base + a] / 100; evW[a] += ww; } }
+        cw += ww;
+      }
+      totW += cw;
+      const frac = cw / byClass[cl].length;
+      let stops = [], acc = 0;
+      if (cw > 0) for (const a of order) { const f = mix[a] / cw; if (f <= 0.001) continue; stops.push(`${info[a].color} ${(acc * 100).toFixed(1)}% ${((acc + f) * 100).toFixed(1)}%`); acc += f; }
+      cells += `<button class="cell${cl === selClass ? ' sel' : ''}" data-c="${cl}" aria-label="${className(cl)}"><span class="fill" style="height:${(Math.min(1, frac) * 100).toFixed(1)}%;background:${stops.length ? `linear-gradient(to right, ${stops.join(',')})` : 'transparent'}"></span><span class="nm">${className(cl)}</span></button>`;
+    }
+    $('grid').innerHTML = cells;
+    $('gridhint').textContent = mode === 'range' ? 'Bar height shows how much of each hand is still in the range; colors show how the solver plays it.' : 'Every unblocked combo counted equally, whether or not it would reach this point.';
+    $('combos').textContent = `${fmt(totW)} combos`;
+    $('totals').innerHTML = `<div class="mixrow label"><span>Action</span><span>Share of range</span><span style="text-align:right">Freq</span><span style="text-align:right">EV</span></div>` +
+      order.map((a) => `<div class="mixrow"><span>${info[a].name}</span><div class="bar"><div style="width:${totW ? (tot[a] / totW * 100).toFixed(1) : 0}%;--c:${info[a].color}"></div></div><span class="num">${totW ? pct(tot[a] / totW) : '–'}</span><span class="num">${evW[a] ? fmtEV(totEV[a] / evW[a]) : '–'}</span></div>`).join('');
+    renderHand(N, info, order, reach, blocked);
+  }
+  function renderHand(N, info, order, reach, blocked) {
+    const n = N[5].length;
+    $('hand-title').textContent = `${className(selClass)} combos`;
+    const rows = byClass[selClass].map((h) => {
+      if (blocked(h)) return `<div class="combo"><span>${cardStr(HB[h])}${cardStr(HA[h])}</span><span class="hint">uses a board card</span><span></span></div>`;
+      const b = bucketOf(N[1], h), base = N[4] + b * n;
+      const bars = order.map((a) => `<div style="width:${(D.freq[base + a] / 255 * 100).toFixed(1)}%;--c:${info[a].color}" title="${info[a].name} ${pct(D.freq[base + a] / 255)}"></div>`).join('');
+      const eq = N[1] > 0 && buckets ? ` · ${Math.round(buckets[N[1]].eq[h] * 100)}% eq` : '';
+      return `<div class="combo"><span>${cardStr(HB[h])}${cardStr(HA[h])}</span><div class="stack">${bars}</div><span class="w" title="Share of this combo still in range${eq}">${mode === 'range' ? pct(reach[h]) : ''}</span></div>`;
+    }).join('');
+    $('hand').innerHTML = `<div class="combos">${rows}</div><p class="hint" style="margin-top:8px">Each row is one combo: the bar shows the solver's mix, the number how often this combo is still in the range.</p>`;
+  }
+
+  // ---------- controls ----------
+  $('next').addEventListener('click', (e) => { const b = e.target.closest('button[data-a]'); if (!b) return; path.push({ nid: currentNode(), a: +b.dataset.a }); render(); });
+  $('line').addEventListener('click', (e) => { const b = e.target.closest('button[data-back]'); if (!b) return; path = path.slice(0, +b.dataset.back); render(); });
+  $('grid').addEventListener('click', (e) => { const c = e.target.closest('.cell'); if (!c) return; selClass = +c.dataset.c; render(); });
+  $('mode').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; mode = b.dataset.v; for (const x of $('mode').children) x.setAttribute('aria-pressed', String(x === b)); render(); });
+  for (const x of $('mode').children) x.setAttribute('aria-pressed', String(x.dataset.v === mode));
+  $('randboard').onclick = randomBoard;
+  $('board').addEventListener('click', (e) => {
+    const s = e.target.closest('.slot'); if (!s) return;
+    picking = picking === +s.dataset.i ? -1 : +s.dataset.i;
+    $('picker').hidden = picking < 0;
+    if (picking >= 0) {
+      let html = '';
+      for (let su = 0; su < 4; su++) for (let r = 12; r >= 0; r--) { const c = r * 4 + su; html += `<button class="${SUITS[su][1]}" data-card="${c}" ${board.includes(c) ? 'disabled' : ''}>${RANKS[r]}${SUITS[su][0]}</button>`; }
+      $('picker').innerHTML = html;
+    }
+    render();
+  });
+  $('picker').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-card]'); if (!b || picking < 0) return;
+    const nb = board.slice(); nb[picking] = +b.dataset.card; picking = -1; $('picker').hidden = true; setBoard(nb);
+  });
+
+  function defaultPath() {
+    // a classic spot: button raises, big blind calls
+    path = [{ nid: 0, a: node(0)[5].findIndex((x) => x[0] === A.RAISE) }];
+    const N1 = node(node(0)[5][path[0].a][2]);
+    path.push({ nid: node(0)[5][path[0].a][2], a: N1[5].findIndex((x) => x[0] === A.CALL) });
+  }
+  let stack = 100;
+  try { const v = +localStorage.getItem('hux:stack'); if (DATA_FILES[v]) stack = v; } catch {}
+  function syncStack() {
+    for (const b of $('stackmode').children) b.setAttribute('aria-pressed', String(+b.dataset.v === STACK()));
+    $('eyebrow').textContent = `Heads-up no-limit hold'em · ${STACK()}bb · solver strategy browser`;
+  }
+  $('stackmode').onclick = async (e) => {
+    const b = e.target.closest('button'); if (!b || !D || +b.dataset.v === STACK()) return;
+    $('grid-title').textContent = 'Loading…';
+    try { await load(+b.dataset.v); } catch (err) { console.error(err); }
+    try { localStorage.setItem('hux:stack', String(STACK())); } catch {}
+    defaultPath(); syncStack(); render();
+  };
+  load(stack).catch(() => load(100)).then(() => {
+    defaultPath(); syncStack();
+    selClass = 0;
+    randomBoard();
+  }).catch((err) => { console.error(err); $('grid').innerHTML = '<p class="hint" style="grid-column:1/-1">The solver data did not load. Reload the page to try again.</p>'; });
+})();
+</script>
+<!--LAB-B--><script id="lab-polish-js">
+// Poker Solver Lab polish layer: animates only what changed between renders (new cards, flipped cards,
+// new action chips, pot and stat changes) and pops a grade badge after each decision.
+(() => {
+  const reduce = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : { matches: true };
+  const seen = new Map(); // spot key -> last identity
+  let lastAct = 0, verdictBefore = '';
+
+  const anchorOf = (el) => {
+    const seat = el.closest('.seat');
+    if (seat) return ['S' + seat.style.left + ',' + seat.style.top, seat];
+    const a = el.closest('[id]');
+    return a ? ['#' + a.id, a] : ['body', document.body];
+  };
+  const restart = (el, cls) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
+
+  function scanCards() {
+    const fresh = new Map(); // anchor -> count of newly dealt cards in this pass, for staggering
+    for (const pc of document.querySelectorAll('.pc')) {
+      const [ak, anchor] = anchorOf(pc);
+      const i = [...anchor.querySelectorAll('.pc')].indexOf(pc);
+      const key = 'pc|' + ak + '|' + i;
+      const id = pc.classList.contains('slot') ? 'slot' : pc.classList.contains('back') ? 'back' : pc.textContent.trim();
+      const prev = seen.get(key);
+      seen.set(key, id);
+      if (prev === id || id === 'slot' || pc.classList.contains('lab-deal') || pc.classList.contains('lab-flip')) continue;
+      const n = fresh.get(ak) || 0; fresh.set(ak, n + 1);
+      pc.style.setProperty('--lab-d', n * 85 + 'ms');
+      pc.classList.add(prev === 'back' ? 'lab-flip' : 'lab-deal');
+    }
+  }
+  function scanText(sel, cls, keyPrefix) {
+    for (const el of document.querySelectorAll(sel)) {
+      const [ak, anchor] = anchorOf(el);
+      const i = [...anchor.querySelectorAll(sel)].indexOf(el);
+      const key = keyPrefix + '|' + ak + '|' + i;
+      const t = el.textContent.trim();
+      const prev = seen.get(key);
+      seen.set(key, t);
+      if (prev !== undefined && prev !== t && t) restart(el, cls);
+    }
+  }
+
+  const visibleVerdict = () => [...document.querySelectorAll('.verdict')].find((x) => x.offsetParent !== null);
+  function verdictText() { const v = visibleVerdict(); return v ? v.textContent.trim() : ''; }
+  function toast() {
+    const v = [...document.querySelectorAll('.verdict')].find((x) => x.offsetParent !== null);
+    if (!v) return;
+    const text = v.textContent.trim();
+    if (!text || /^(solver|your options)/i.test(text)) return;
+    const color = getComputedStyle(v).color;
+    const low = text.toLowerCase();
+    const icon = /mistake|wrong|bad|blunder/.test(low) ? '✕' : /inacc|close|small/.test(low) ? '~' : '✓';
+    const onScreen = (x) => { const r = x.getBoundingClientRect(); return r.height > 0 && r.bottom > 80 && r.top < innerHeight - 80; };
+    // over the table when there is one, otherwise over the panel holding the action buttons
+    let host = [...document.querySelectorAll('.table, .felt')].find(onScreen) || document.querySelector('#actions')?.closest('.card');
+    if (host && !onScreen(host)) host = null;
+    if (host && getComputedStyle(host).position === 'static') host.style.position = 'relative';
+    const t = document.createElement('div');
+    t.className = 'labtoast' + (host ? '' : ' fixed');
+    t.style.setProperty('--v', color);
+    t.innerHTML = `<i aria-hidden="true">${icon}</i>`;
+    t.append(text.replace(/\s+/g, ' '));
+    t.setAttribute('role', 'status');
+    (host || document.body).appendChild(t);
+    setTimeout(() => t.classList.add('out'), 1100);
+    setTimeout(() => t.remove(), 1500);
+  }
+
+  let queued = false;
+  function scan() {
+    queued = false;
+    if (!reduce.matches) {
+      scanCards();
+      scanText('.actchip, .seat .chip', 'lab-pop', 'chip');
+      scanText('.pot, .potline', 'lab-bump', 'pot');
+      scanText('.stats b', 'lab-bump', 'stat');
+    }
+    if (performance.now() - lastAct < 1600) {
+      const v = visibleVerdict();
+      // a re-rendered verdict node, or a changed or newly shown one, means the decision was just graded
+      if (v && v.textContent.trim() && (!v.dataset.labOld || v.textContent.trim() !== verdictBefore)) { lastAct = 0; toast(); }
+    }
+  }
+  const nextFrame = window.requestAnimationFrame ? (f) => requestAnimationFrame(f) : (f) => setTimeout(f, 16);
+  new MutationObserver(() => { if (!queued) { queued = true; nextFrame(scan); } })
+    .observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['hidden', 'class'] });
+  // A click on an action button starts a short window in which a new grade gets a toast.
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('#actions button, .actions button');
+    if (!b || b.id === 'next-in' || b.id === 'next' || /deal next|next hand/i.test(b.textContent)) return;
+    verdictBefore = verdictText();
+    for (const v of document.querySelectorAll('.verdict')) v.dataset.labOld = '1';
+    lastAct = performance.now();
+  }, true);
+  for (const el of document.querySelectorAll('.pc')) el.classList.add('lab-deal');
+  scan();
+})();
+</script><!--/LAB-B-->
+</html>

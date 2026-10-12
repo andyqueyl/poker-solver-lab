@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Free poker training tools built on game-theory solvers: push/fold, 6-max preflop, full heads-up and 6-max hands, and range explorers.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Ccircle cx='48' cy='48' r='44' fill='%23dc4c55'/%3E%3Ccircle cx='48' cy='48' r='44' fill='none' stroke='%23fff' stroke-width='7' stroke-dasharray='17.3 17.3' transform='rotate(-11 48 48)'/%3E%3Ccircle cx='48' cy='48' r='29' fill='%23fff'/%3E%3Cpath d='M48 31c-5 7-14 11-14 18.5 0 4.6 3.6 7.8 7.7 7.8 2.3 0 4.2-1 5.3-2.6-.4 3.6-1.9 6.7-4.6 9.3h11.2c-2.7-2.6-4.2-5.7-4.6-9.3 1.1 1.6 3 2.6 5.3 2.6 4.1 0 7.7-3.2 7.7-7.8C62 42 53 38 48 31z' fill='%2314181d'/%3E%3C/svg%3E">
+<title>Poker Solver Lab</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a full-screen hero (logo + title), then the modes as a grid of square tiles (4 across, 2 on tablets, 1 on narrow phones).
+   Motion: GSAP intro on load; on scroll the hero floats away and each tile grows from small to full size. Without GSAP or with reduced motion, everything is simply visible. */
+:root {
+  --bg: #edf0f2;
+  --surface: #f9fafb;
+  --ink: #14181d;
+  --muted: #5b6470;
+  --line: #d5dbe1;
+  --accent: #c2333b;
+  --tint: #f3e3e4;
+  --display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
+  --body: "Barlow", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #0f1316; --surface: #171c21; --ink: #e6eaee; --muted: #8d97a3; --line: #28303a; --accent: #dc4c55; --tint: #2a1d21; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #0f1316; --surface: #171c21; --ink: #e6eaee; --muted: #8d97a3; --line: #28303a; --accent: #dc4c55; --tint: #2a1d21; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.5; padding-inline: 16px; padding-block: 0; overflow-x: hidden; }
+.wrap { max-width: 1280px; margin: 0 auto; }
+
+.hero { min-height: 100vh; min-height: 100svh; display: grid; place-items: center; position: relative; padding-block: 48px 120px; }
+.hero-in { display: grid; justify-items: center; text-align: center; gap: 20px; }
+.logo { width: 150px; height: 150px; color: var(--accent); }
+h1 { margin: 0; font: 700 clamp(64px, 14vw, 176px)/0.86 var(--display); text-transform: uppercase; letter-spacing: -0.015em; }
+h1 .w { display: inline-block; }
+h1 em { font-style: normal; color: var(--accent); }
+.lede { margin: 6px 0 0; max-width: 56ch; color: var(--muted); text-wrap: pretty; }
+
+.cue { position: absolute; left: 0; right: 0; bottom: 28px; display: grid; justify-items: center; }
+.cue button { display: grid; justify-items: center; gap: 6px; background: none; border: 0; cursor: pointer; color: var(--muted); font: 600 12px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; padding: 8px 12px; }
+.cue button:hover { color: var(--ink); }
+.cue svg { width: 22px; height: 22px; animation: bob 1.8s ease-in-out infinite; }
+@keyframes bob { 50% { transform: translateY(6px); } }
+
+.modes { display: grid; gap: 32px; padding-block: 40px 24px; }
+.foot { min-height: 45vh; display: grid; place-content: start center; padding-top: 40px; text-align: center; font: 600 12px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.modes-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px 20px; }
+.modes-head h2 { margin: 0; font: 700 clamp(40px, 6vw, 72px)/0.9 var(--display); text-transform: uppercase; letter-spacing: -0.01em; }
+.modes-head h2 em { font-style: normal; color: var(--accent); }
+.modes-head span { font: 600 12px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+.grid li { display: flex; min-width: 0; will-change: transform; }
+.tile { flex: 1; min-width: 0; aspect-ratio: 1; display: flex; flex-direction: column; gap: 12px; padding: 22px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; color: inherit; text-decoration: none; transition: border-color 0.15s, transform 0.15s; }
+a.tile:hover { border-color: var(--muted); transform: translateY(-3px); }
+.icon svg { transition: transform 0.3s cubic-bezier(.2,.8,.2,1.4); }
+a.tile:hover .icon svg { transform: scale(1.08) rotate(-4deg); }
+a.tile:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.top { display: flex; justify-content: space-between; align-items: baseline; font: 600 12px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.top .arrow { font-size: 15px; letter-spacing: 0; }
+.icon { flex: 1; display: grid; place-items: center; min-height: 64px; }
+.icon svg { width: 104px; height: 104px; color: var(--accent); }
+.t { font: 700 28px/1 var(--display); text-transform: uppercase; letter-spacing: 0.01em; text-wrap: balance; }
+.d { margin: 0; font-size: 15px; line-height: 1.4; color: var(--muted); }
+
+.tile.about { background: var(--tint); border-style: dashed; }
+.about .t { font-size: 23px; }
+.about .d { font-size: 14px; }
+
+@media (max-width: 1180px) { .modes-head { max-width: 780px; width: 100%; margin-inline: auto; } .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; max-width: 780px; margin-inline: auto; } }
+@media (max-width: 640px) {
+  .tile { padding: 16px; gap: 8px; }
+  .icon svg { width: 64px; height: 64px; }
+  .t { font-size: 22px; }
+  .d { font-size: 13.5px; }
+  .about .t { font-size: 19px; }
+  .about .d { font-size: 12.5px; }
+}
+@media (max-width: 440px) {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+  .tile { aspect-ratio: auto; }
+  .icon { min-height: 0; padding: 4px 0; }
+  .icon svg { width: 56px; height: 56px; }
+  .logo { width: 110px; height: 110px; }
+}
+@media (prefers-reduced-motion: reduce) { .tile, .icon svg { transition: none; } a.tile:hover, a.tile:hover .icon svg { transform: none; } .cue svg { animation: none; } }
+</style>
+
+<div class="wrap">
+  <header class="hero">
+   <div class="hero-in">
+    <!-- Logo: a poker chip with a spade at its center -->
+    <div class="logo-spin"><svg class="logo" viewBox="0 0 96 96" aria-hidden="true">
+      <circle cx="48" cy="48" r="44" fill="currentColor"/>
+      <circle cx="48" cy="48" r="44" fill="none" stroke="var(--bg)" stroke-width="7" stroke-dasharray="17.3 17.3" transform="rotate(-11 48 48)"/>
+      <circle cx="48" cy="48" r="29" fill="var(--bg)"/>
+      <circle cx="48" cy="48" r="29" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="3 4"/>
+      <path d="M48 31c-5 7-14 11-14 18.5 0 4.6 3.6 7.8 7.7 7.8 2.3 0 4.2-1 5.3-2.6-.4 3.6-1.9 6.7-4.6 9.3h11.2c-2.7-2.6-4.2-5.7-4.6-9.3 1.1 1.6 3 2.6 5.3 2.6 4.1 0 7.7-3.2 7.7-7.8C62 42 53 38 48 31z" fill="var(--ink)"/>
+    </svg></div>
+    <h1><span class="w">Poker</span> <em class="w">Solver</em> <span class="w">Lab</span></h1>
+    <p class="lede">Seven tools built on solvers computed for this project, from push/fold up to full six-handed hands. Every trainer grades your decisions against the solver and tracks your leaks.</p>
+   </div>
+    <div class="cue"><button type="button" id="cue">Choose a mode<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></div>
+  </header>
+
+  <section class="modes" id="modes">
+  <div class="modes-head"><h2>Choose a <em>mode</em></h2><span>7 tools · learn → preflop → full hands → study</span></div>
+  <ul class="grid">
+    <li><a class="tile" href="learn/">
+      <div class="top"><span>01 · Learn</span><span class="arrow">↗</span></div>
+      <div class="icon"><svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 10v52h52"/><path d="M16 18c6 0 8 16 15 20s9 3 14 10 10 6 14 6" /><circle cx="16" cy="18" r="3" fill="currentColor"/><circle cx="59" cy="54" r="3" fill="currentColor"/></svg></div>
+      <div class="t">Watch CFR Learn</div>
+      <p class="d">See a solver find the equilibrium live.</p>
+    </a></li>
+    <li><a class="tile" href="push-fold/">
+      <div class="top"><span>02 · Preflop</span><span class="arrow">↗</span></div>
+      <div class="icon"><svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="30" cy="54" rx="18" ry="6"/><path d="M12 54v-8m36 8v-8"/><ellipse cx="30" cy="46" rx="18" ry="6"/><path d="M12 46v-8m36 8v-8"/><ellipse cx="30" cy="38" rx="18" ry="6"/><path d="M58 40V12m-8 8 8-8 8 8"/></svg></div>
+      <div class="t">Push/Fold Trainer</div>
+      <p class="d">Shove or fold from 1–25bb, heads-up and 6-max.</p>
+    </a></li>
+    <li><a class="tile" href="preflop/">
+      <div class="top"><span>03 · Preflop</span><span class="arrow">↗</span></div>
+      <div class="icon"><svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" aria-hidden="true"><rect x="10" y="10" width="52" height="52" rx="4"/><g fill="currentColor" stroke="none"><rect x="14" y="14" width="10" height="10" rx="1.5"/><rect x="26" y="14" width="10" height="10" rx="1.5"/><rect x="38" y="14" width="10" height="10" rx="1.5"/><rect x="50" y="14" width="8" height="10" rx="1.5"/><rect x="14" y="26" width="10" height="10" rx="1.5"/><rect x="26" y="26" width="10" height="10" rx="1.5"/><rect x="38" y="26" width="10" height="10" rx="1.5" opacity=".45"/><rect x="14" y="38" width="10" height="10" rx="1.5"/><rect x="26" y="38" width="10" height="10" rx="1.5" opacity=".45"/><rect x="14" y="50" width="10" height="8" rx="1.5" opacity=".45"/></g></svg></div>
+      <div class="t">6&#8209;Max Preflop Trainer</div>
+      <p class="d">Opens, 3-bets and squeezes from every seat.</p>
+    </a></li>
+    <li><a class="tile" href="heads-up/">
+      <div class="top"><span>04 · Full hands</span><span class="arrow">↗</span></div>
+      <div class="icon"><svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" aria-hidden="true"><rect x="10" y="16" width="28" height="40" rx="4" transform="rotate(-10 24 36)"/><rect x="32" y="14" width="28" height="40" rx="4" transform="rotate(8 46 34)" fill="var(--surface)"/><path d="M46 26c-2.5 3.5-7 5.5-7 9.3a3.8 3.8 0 0 0 6.6 2.6c-.2 1.8-1 3.4-2.3 4.6h5.4c-1.3-1.2-2.1-2.8-2.3-4.6a3.8 3.8 0 0 0 6.6-2.6c0-3.8-4.5-5.8-7-9.3z" fill="currentColor" stroke="none" transform="rotate(8 46 34)"/></svg></div>
+      <div class="t">Heads&#8209;Up Hold'em Trainer</div>
+      <p class="d">Full hands vs a solver bot at 100, 40 or 20bb.</p>
+    </a></li>
+    <li><a class="tile" href="heads-up-explorer/">
+      <div class="top"><span>05 · Study</span><span class="arrow">↗</span></div>
+      <div class="icon"><svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="40" height="40" rx="4"/><path d="M8 21h40M8 34h40M21 8v40M34 8v40" stroke-width="2" opacity=".5"/><circle cx="44" cy="44" r="13" fill="var(--surface)"/><path d="M53.5 53.5 64 64"/></svg></div>
+      <div class="t">Heads&#8209;Up Spot Explorer</div>
+      <p class="d">Any board, any line: the solver's whole range.</p>
+    </a></li>
+    <li><a class="tile" href="six-max/">
+      <div class="top"><span>06 · Full hands</span><span class="arrow">↗</span></div>
+      <div class="icon"><svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><rect x="12" y="22" width="48" height="28" rx="14"/><g fill="currentColor" stroke="none"><circle cx="26" cy="13" r="4.5"/><circle cx="46" cy="13" r="4.5"/><circle cx="66" cy="36" r="4.5"/><circle cx="46" cy="59" r="4.5"/><circle cx="26" cy="59" r="4.5"/><circle cx="6" cy="36" r="4.5"/></g></svg></div>
+      <div class="t">6&#8209;Max Hold'em Trainer</div>
+      <p class="d">Six-handed hands vs five bots, including 3-way pots.</p>
+    </a></li>
+    <li><a class="tile" href="six-max-explorer/">
+      <div class="top"><span>07 · Study</span><span class="arrow">↗</span></div>
+      <div class="icon"><svg viewBox="0 0 72 72" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><circle cx="28" cy="28" r="16"/><circle cx="44" cy="28" r="16"/><circle cx="36" cy="42" r="16"/></svg></div>
+      <div class="t">6&#8209;Max Spot Explorer</div>
+      <p class="d">Ranges for 11 kinds of six-handed pots.</p>
+    </a></li>
+    <li><div class="tile about">
+      <div class="top"><span>About the solutions</span></div>
+      <div class="t">Approximate, simplified</div>
+      <p class="d">Every tool solves a simplified game: bet sizes are limited to the buttons shown, and after the flop hands are grouped by strength. Each page explains its own model at the bottom. Stats and leaks stay in your browser.</p>
+    </div></li>
+  </ul>
+  </section>
+  <p class="foot">Every tool links back here · stats and leaks stay in your browser</p>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  $('#cue').addEventListener('click', () => $('#modes').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }));
+  if (!window.gsap || !window.ScrollTrigger) return; // no library: the page stays static and fully visible
+  gsap.registerPlugin(ScrollTrigger);
+  const mm = gsap.matchMedia();
+  mm.add('(prefers-reduced-motion: no-preference)', () => {
+    // Intro: the chip spins in, then the title words rise one by one.
+    gsap.timeline({ defaults: { ease: 'power3.out' } })
+      .from('.logo', { scale: 0.3, rotation: -300, opacity: 0, y: -60, duration: 1.1, ease: 'back.out(1.6)' })
+      .from('h1 .w', { yPercent: 70, opacity: 0, filter: 'blur(8px)', duration: 0.8, stagger: 0.12 }, '-=0.55')
+      .from('.lede', { y: 20, opacity: 0, duration: 0.7 }, '-=0.4')
+      .from('#cue', { y: -10, opacity: 0, duration: 0.6 }, '-=0.3');
+
+    // Scrolling away from the hero: the title floats up and fades while the chip keeps turning.
+    const away = { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: 0.4 };
+    gsap.to('.hero-in', { yPercent: -18, scale: 0.82, opacity: 0, ease: 'none', scrollTrigger: away });
+    gsap.to('.logo-spin', { rotation: 360, ease: 'none', scrollTrigger: away });
+    gsap.to('.cue', { opacity: 0, ease: 'none', scrollTrigger: { trigger: '.hero', start: 'top top', end: '20% top', scrub: true } });
+
+    gsap.from('.modes-head', { y: 60, opacity: 0, ease: 'none', scrollTrigger: { trigger: '.modes-head', start: 'top bottom', end: 'top 70%', scrub: 0.5 } });
+
+    // Each mode tile starts small and grows to full size as it scrolls up the screen; columns arrive in a slight wave.
+    const items = gsap.utils.toArray('.grid li');
+    const cols = () => getComputedStyle($('.grid')).gridTemplateColumns.split(' ').length;
+    items.forEach((li, i) => {
+      gsap.fromTo(li, { scale: 0.32, opacity: 0, y: 120 }, {
+        scale: 1, opacity: 1, y: 0, ease: 'power2.out',
+        scrollTrigger: { trigger: li, start: () => `top ${100 + (i % cols()) * 5}%`, end: () => `top ${38 - (i % cols()) * 2}%`, scrub: 0.7, invalidateOnRefresh: true },
+      });
+    });
+  });
+})();
+</script>
+</html>

@@ -1,0 +1,957 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Range strategies for 11 kinds of 6-max postflop pots.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Ccircle cx='48' cy='48' r='44' fill='%23dc4c55'/%3E%3Ccircle cx='48' cy='48' r='44' fill='none' stroke='%23fff' stroke-width='7' stroke-dasharray='17.3 17.3' transform='rotate(-11 48 48)'/%3E%3Ccircle cx='48' cy='48' r='29' fill='%23fff'/%3E%3Cpath d='M48 31c-5 7-14 11-14 18.5 0 4.6 3.6 7.8 7.7 7.8 2.3 0 4.2-1 5.3-2.6-.4 3.6-1.9 6.7-4.6 9.3h11.2c-2.7-2.6-4.2-5.7-4.6-9.3 1.1 1.6 3 2.6 5.3 2.6 4.1 0 7.7-3.2 7.7-7.8C62 42 53 38 48 31z' fill='%2314181d'/%3E%3C/svg%3E">
+<title>6-Max Spot Explorer</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: board and betting line across the top; the range grid on the left; totals and hand detail on the right. */
+:root {
+  --bg: #edf0f2;
+  --surface: #f9fafb;
+  --ink: #14181d;
+  --muted: #5b6470;
+  --line: #d5dbe1;
+  --bet: #c2333b;
+  --bet2: #8e1f2a;
+  --bet3: #5e1420;
+  --jam: #6b3fa0;
+  --call: #23855a;
+  --fold: #c3ccd5;
+  --empty: #e2e7ec;
+  --on-action: #ffffff;
+  --display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
+  --body: "Barlow", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1316; --surface: #171c21; --ink: #e6eaee; --muted: #8d97a3; --line: #28303a;
+    --bet: #dc4c55; --bet2: #a8323c; --bet3: #7d2430; --jam: #9467c9; --call: #35a873; --fold: #3a4550; --empty: #1d242b; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1316; --surface: #171c21; --ink: #e6eaee; --muted: #8d97a3; --line: #28303a;
+  --bet: #dc4c55; --bet2: #a8323c; --bet3: #7d2430; --jam: #9467c9; --call: #35a873; --fold: #3a4550; --empty: #1d242b; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.45; padding-inline: 16px; padding-block: 20px 48px; }
+.wrap { max-width: 1200px; margin: 0 auto; display: grid; gap: 16px; }
+.eyebrow { font: 600 12px var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 2px 0 0; font: 700 clamp(32px, 5.5vw, 50px)/0.95 var(--display); letter-spacing: -0.01em; text-transform: uppercase; text-wrap: balance; }
+h1 em { font-style: normal; color: var(--bet); }
+h2 { margin: 0 0 10px; font: 700 19px/1.1 var(--display); text-transform: uppercase; letter-spacing: 0.02em; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+h2 .num { font: 12px var(--mono); color: var(--muted); text-transform: none; letter-spacing: 0; }
+button { font: 600 14px/1 var(--body); color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.label { font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0; }
+.hint { margin: 0; font-size: 13px; color: var(--muted); }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+.top { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 860px) { .top { grid-template-columns: minmax(0, 1fr); } }
+.boardrow { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.slot { width: 46px; aspect-ratio: 5 / 7; border-radius: 7px; border: 1px dashed var(--line); background: transparent; padding: 3px 5px; display: grid; grid-template-rows: auto 1fr; color: var(--suit); cursor: pointer; }
+.slot.filled { background: #fff; border: 1px solid #c9ced4; }
+.slot.later { opacity: 0.45; }
+.slot.sel { outline: 2px solid var(--ink); outline-offset: 2px; }
+.slot .r { font: 700 17px/1 var(--display); }
+.slot .s { font-size: 19px; line-height: 1; place-self: center; }
+.s0 { --suit: #1c1f24; } .h { --suit: #c92a2a; } .d { --suit: #1c6fd1; } .c { --suit: #2b8a3e; }
+.picker { display: grid; grid-template-columns: repeat(13, minmax(0, 1fr)); gap: 3px; margin-top: 10px; max-width: 520px; }
+.picker button { padding: 4px 0; font: 600 13px var(--mono); color: var(--suit); background: #fff; border-color: #c9ced4; }
+.picker button:disabled { opacity: 0.25; cursor: default; }
+.line { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.crumb { font: 500 13px var(--body); padding: 5px 9px; border-radius: 99px; border: 1px solid var(--line); background: var(--bg); }
+.crumb b { font-weight: 600; }
+.crumb.street { background: transparent; border: 0; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding-inline: 2px; }
+.next { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center; }
+.next button { color: var(--on-action); background: var(--c); border-color: var(--c); }
+.next button.fold { color: var(--ink); }
+
+.mainrow { display: grid; grid-template-columns: minmax(0, 640px) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 960px) { .mainrow { grid-template-columns: minmax(0, 1fr); } }
+.grid13 { display: grid; grid-template-columns: repeat(13, minmax(0, 1fr)); gap: 2px; }
+.cell { position: relative; aspect-ratio: 1; border-radius: 3px; overflow: hidden; background: var(--empty); border: 0; padding: 0; cursor: pointer; }
+.cell .fill { position: absolute; left: 0; right: 0; bottom: 0; }
+.cell .nm { position: relative; z-index: 1; display: grid; place-items: center; height: 100%; font: 600 clamp(8px, 1.1vw, 12px)/1 var(--mono); letter-spacing: -0.03em; color: var(--ink); text-shadow: 0 0 3px var(--surface); }
+.cell.sel { outline: 2px solid var(--ink); outline-offset: 1px; z-index: 2; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--muted); margin-top: 10px; }
+.legend i { display: inline-block; width: 11px; height: 11px; border-radius: 3px; vertical-align: -1px; margin-right: 5px; background: var(--c); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; padding: 6px 10px; font-size: 13px; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.side { display: grid; gap: 16px; min-width: 0; }
+.mix { display: grid; gap: 7px; }
+.mixrow { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 48px 62px; gap: 8px; align-items: center; font-size: 13px; }
+.mixrow .bar { height: 9px; border-radius: 99px; background: var(--empty); overflow: hidden; }
+.mixrow .bar div { height: 100%; border-radius: 99px; background: var(--c); }
+.mixrow .num { text-align: right; font-size: 12px; }
+.combos { display: grid; gap: 6px; max-height: 340px; overflow-y: auto; }
+.combo { display: grid; grid-template-columns: 56px minmax(0, 1fr) 44px; gap: 8px; align-items: center; font: 13px var(--mono); }
+.combo .stack { display: flex; height: 12px; border-radius: 3px; overflow: hidden; background: var(--empty); }
+.combo .stack div { height: 100%; background: var(--c); }
+.combo .w { text-align: right; color: var(--muted); font-size: 12px; }
+.status { font-size: 14px; }
+.method { font-size: 13px; color: var(--muted); margin: 0; max-width: 90ch; }
+</style>
+
+<!--LAB-A-->
+<style id="lab-polish">
+/* Poker Solver Lab polish layer: shared top bar, depth, table rail, and motion for every tool page.
+   Injected after each page's own styles, so equal-specificity rules here win. */
+:root { --lab-red: #c2333b; --lab-rail: #2b3036; --lab-rail-hi: #474e57; --lab-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset, 0 12px 30px -20px rgba(20, 24, 29, 0.45); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --lab-red: #dc4c55; --lab-rail: #181c21; --lab-rail-hi: #2e353e; --lab-shadow: 0 1px 0 rgba(255, 255, 255, 0.035) inset, 0 16px 36px -22px rgba(0, 0, 0, 0.9); }
+}
+:root[data-theme="dark"] { --lab-red: #dc4c55; --lab-rail: #181c21; --lab-rail-hi: #2e353e; --lab-shadow: 0 1px 0 rgba(255, 255, 255, 0.035) inset, 0 16px 36px -22px rgba(0, 0, 0, 0.9); }
+
+body { background: radial-gradient(1100px 440px at 50% -180px, color-mix(in srgb, var(--lab-red) 10%, transparent), transparent 72%) no-repeat, var(--bg); }
+
+/* Top bar back to the hub */
+.labbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.labhome { display: inline-flex; gap: 10px; align-items: center; color: var(--ink); text-decoration: none; font: 700 19px/1 var(--display); text-transform: uppercase; letter-spacing: 0.02em; }
+.labhome em { font-style: normal; color: var(--lab-red); }
+.labhome svg { width: 30px; height: 30px; flex: none; transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.labhome:hover svg { transform: rotate(180deg); }
+.labhome:focus-visible, .laball:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 6px; }
+.laball { font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); text-decoration: none; padding: 7px 12px; border: 1px solid var(--line); border-radius: 99px; white-space: nowrap; transition: color 0.15s, border-color 0.15s; }
+.laball:hover { color: var(--ink); border-color: var(--muted); }
+
+/* Panels and controls */
+.card { box-shadow: var(--lab-shadow); }
+button { transition: transform 0.12s ease, background-color 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.2s, filter 0.15s; }
+button:active:not(:disabled) { transform: scale(0.96); }
+.seg { box-shadow: var(--lab-shadow); }
+.seg button[aria-pressed="true"] { box-shadow: 0 1px 0 rgba(255, 255, 255, 0.12) inset; }
+.act { background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(0, 0, 0, 0.07)); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.2) inset, 0 10px 20px -12px rgba(0, 0, 0, 0.65); }
+.act:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.07); box-shadow: 0 1px 0 rgba(255, 255, 255, 0.2) inset, 0 16px 26px -14px rgba(0, 0, 0, 0.7); }
+.act:active:not(:disabled) { transform: translateY(0) scale(0.96); }
+.act.fold, .act.fold:hover { background-image: none; }
+
+/* Table: felt texture, light pool and a padded rail */
+.table, .felt {
+  position: relative;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse at 50% 38%, color-mix(in srgb, var(--felt) 80%, white) 0%, var(--felt) 55%, var(--felt-edge) 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06), inset 0 0 70px rgba(0, 0, 0, 0.38), 0 0 0 9px var(--lab-rail), 0 0 0 10px var(--lab-rail-hi), 0 26px 50px -26px rgba(0, 0, 0, 0.75);
+  margin: 10px;
+  border-color: transparent;
+}
+
+/* 6-max seats: pill-shaped pods; yours gets a ring */
+.felt .seat .tag { background: rgba(6, 10, 12, 0.55); border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 99px; padding: 6px 12px; box-shadow: 0 8px 16px -10px rgba(0, 0, 0, 0.8); }
+.felt .seat.hero .tag { background: var(--surface); color: var(--ink); border-color: transparent; box-shadow: 0 0 0 3px color-mix(in srgb, var(--lab-red) 70%, transparent), 0 10px 20px -10px rgba(0, 0, 0, 0.8); }
+.felt .seat .stake { background: rgba(0, 0, 0, 0.3); padding: 2px 8px; border-radius: 99px; }
+.felt .seat .stake:empty { display: none; }
+.felt .seat .chip:not(:empty) { display: inline-flex; align-items: center; gap: 5px; box-shadow: 0 6px 12px -8px rgba(0, 0, 0, 0.9); }
+.felt .seat .chip:not(:empty)::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35); }
+.felt .dealer { box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25), 0 3px 6px rgba(0, 0, 0, 0.5); }
+.pot { text-shadow: 0 2px 10px rgba(0, 0, 0, 0.45); }
+
+/* Cards */
+.pc:not(.slot):not(.back) { background: linear-gradient(165deg, #ffffff 0%, #f3f5f7 100%); box-shadow: 0 1px 0 #ffffff inset, 0 2px 3px rgba(0, 0, 0, 0.16), 0 12px 20px -12px rgba(0, 0, 0, 0.75); }
+.pc.back {
+  background-color: #a3373f;
+  background-image: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.13) 0 2px, transparent 2px 8px), repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.13) 0 2px, transparent 2px 8px);
+  box-shadow: inset 0 0 0 3px #a3373f, inset 0 0 0 4.5px rgba(255, 255, 255, 0.55), 0 12px 20px -12px rgba(0, 0, 0, 0.75);
+}
+.pc { animation: none; }
+.pc.slot { border-color: rgba(255, 255, 255, 0.22); background: rgba(0, 0, 0, 0.1); }
+
+.stats b, .pot, .potline { transform-origin: left center; }
+.pot { transform-origin: center; }
+.banner { box-shadow: 0 14px 30px -18px rgba(0, 0, 0, 0.8); backdrop-filter: blur(2px); }
+
+/* Grade toast */
+.labtoast { position: absolute; left: 50%; top: 50%; z-index: 30; pointer-events: none; display: inline-flex; align-items: center; gap: 10px; padding: 10px 18px 10px 12px; border-radius: 99px; background: var(--surface); color: var(--v, var(--ink)); border: 2px solid var(--v, var(--line)); font: 700 22px/1 var(--display); text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; box-shadow: 0 20px 40px -18px rgba(0, 0, 0, 0.75); transform: translate(-50%, -50%); }
+.labtoast i { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--v, var(--ink)); color: var(--surface); font: 700 16px/1 var(--body); font-style: normal; }
+.labtoast.fixed { position: fixed; top: 96px; }
+.labtoast.out { opacity: 0; transition: opacity 0.35s ease; }
+
+/* Explorer grids */
+.grid13 .cell { transition: transform 0.12s ease, box-shadow 0.12s ease; }
+.grid13 .cell:hover { transform: scale(1.14); z-index: 3; position: relative; box-shadow: 0 8px 16px -8px rgba(0, 0, 0, 0.7); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .wrap > header, .wrap > .labbar { animation: lab-rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .wrap > header { animation-delay: 60ms; }
+  .card { animation: lab-rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .side > .card:nth-child(2), .main > .card:nth-child(2) { animation-delay: 70ms; }
+  .side > .card:nth-child(3), .main > .card:nth-child(3) { animation-delay: 140ms; }
+  .side > .card:nth-child(4), .main > .card:nth-child(4) { animation-delay: 210ms; }
+  .side > .card:nth-child(5), .main > .card:nth-child(5) { animation-delay: 280ms; }
+  .table, .felt { animation: lab-table 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+  .actions .act, .actions > button { animation: lab-pop 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.3) backwards; }
+  .actions > :nth-child(2) { animation-delay: 40ms; }
+  .actions > :nth-child(3) { animation-delay: 80ms; }
+  .actions > :nth-child(4) { animation-delay: 120ms; }
+  .actions > :nth-child(5) { animation-delay: 160ms; }
+  .actions > :nth-child(6) { animation-delay: 200ms; }
+
+  .pc.lab-deal { animation: lab-deal 0.46s cubic-bezier(0.2, 0.9, 0.3, 1.15) backwards; animation-delay: var(--lab-d, 0ms); }
+  .pc.lab-flip { animation: lab-flip 0.5s cubic-bezier(0.3, 0.7, 0.3, 1) backwards; animation-delay: var(--lab-d, 0ms); }
+  .lab-pop { animation: lab-pop 0.38s cubic-bezier(0.2, 0.9, 0.3, 1.4); }
+  .lab-bump { animation: lab-bump 0.5s ease; }
+  .banner:not([hidden]) { animation: lab-pop 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.3); }
+  .mixrow .bar div, .streetrow .bar div, .evtable .bar div, .mix .bar div { transform-origin: left center; animation: lab-grow 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
+  .labtoast { animation: lab-toast 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.35); }
+}
+@keyframes lab-rise { from { opacity: 0; transform: translateY(18px); } }
+@keyframes lab-table { from { opacity: 0; transform: scale(0.97); } }
+@keyframes lab-pop { from { opacity: 0; transform: scale(0.8); } }
+@keyframes lab-deal { from { opacity: 0; transform: translate(0, -34px) rotate(-12deg) scale(0.8); } 55% { opacity: 1; } }
+@keyframes lab-flip { from { transform: perspective(400px) rotateY(90deg); } }
+@keyframes lab-bump { 30% { transform: scale(1.1); } }
+@keyframes lab-grow { from { transform: scaleX(0); } }
+@keyframes lab-toast { from { opacity: 0; transform: translate(-50%, -50%) scale(0.6); } }
+
+@media (max-width: 520px) {
+  .labhome { font-size: 16px; } .labhome svg { width: 26px; height: 26px; }
+  .table, .felt { margin: 8px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06), inset 0 0 50px rgba(0, 0, 0, 0.38), 0 0 0 6px var(--lab-rail), 0 0 0 7px var(--lab-rail-hi), 0 20px 40px -24px rgba(0, 0, 0, 0.75); }
+  .labtoast { font-size: 18px; }
+}
+</style>
+<div class="wrap">
+  <nav class="labbar" aria-label="Poker Solver Lab"><a class="labhome" href="../"><svg viewBox="0 0 96 96" aria-hidden="true"><circle cx="48" cy="48" r="44" fill="var(--lab-red)"/><circle cx="48" cy="48" r="44" fill="none" stroke="var(--bg)" stroke-width="7" stroke-dasharray="17.3 17.3" transform="rotate(-11 48 48)"/><circle cx="48" cy="48" r="29" fill="var(--bg)"/><path d="M48 31c-5 7-14 11-14 18.5 0 4.6 3.6 7.8 7.7 7.8 2.3 0 4.2-1 5.3-2.6-.4 3.6-1.9 6.7-4.6 9.3h11.2c-2.7-2.6-4.2-5.7-4.6-9.3 1.1 1.6 3 2.6 5.3 2.6 4.1 0 7.7-3.2 7.7-7.8C62 42 53 38 48 31z" fill="var(--ink)"/></svg><span>Poker <em>Solver</em> Lab</span></a><a class="laball" href="../">All tools ↗</a></nav>
+<!--/LAB-A-->
+  <header>
+    <div class="eyebrow">6-max no-limit hold'em · 100bb · postflop solver browser</div>
+    <h1>6-Max <em>Spot</em> Explorer</h1>
+  </header>
+
+  <div class="top">
+    <div class="card">
+      <h2>Pot type</h2>
+      <select id="game" aria-label="Pot type" style="font:14px var(--body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:6px 8px;max-width:100%"></select>
+      <p class="hint" id="gamehint" style="margin-top:6px"></p>
+      <h2 style="margin-top:14px">Board <button id="randboard">Random board</button></h2>
+      <div class="boardrow" id="board"></div>
+      <div class="picker" id="picker" hidden></div>
+      <p class="hint" id="boardhint" style="margin-top:8px">Click a card slot to change it.</p>
+    </div>
+    <div class="card">
+      <h2>Betting line <span class="num" id="pot"></span></h2>
+      <div class="line" id="line"></div>
+      <div class="next" id="next"></div>
+    </div>
+  </div>
+
+  <div class="mainrow">
+    <div class="card">
+      <h2 id="grid-title">Range</h2>
+      <div class="row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+        <span class="label">Show</span>
+        <div class="seg" id="mode"><button data-v="range">Hands in range</button><button data-v="all">Every hand</button></div>
+      </div>
+      <div class="grid13" id="grid"></div>
+      <div class="legend" id="legend"></div>
+      <p class="hint" style="margin-top:8px" id="gridhint"></p>
+    </div>
+    <div class="side">
+      <div class="card">
+        <h2>Whole range <span class="num" id="combos"></span></h2>
+        <div class="mix" id="totals"></div>
+      </div>
+      <div class="card">
+        <h2 id="hand-title">Hand detail</h2>
+        <div id="hand"></div>
+      </div>
+    </div>
+  </div>
+  <p class="method">This explorer reads the same postflop solutions as the 6-Max Hold'em Trainer. Each pot type was solved with Monte Carlo CFR starting from the flop, with each player's preflop range taken from the 6-max preflop solution (averaged over the seat combinations that lead to that kind of pot). Bet sizes are a third or three quarters of the pot heads-up and half the pot while three players are in. Postflop hands are grouped by equity against a random hand and how much it can swing. "Hands in range" weights each combo by its preflop range weight and how often the player takes the actions so far; bar heights are relative to the most common hand. EVs are training averages for the player to act, in big blinds from the start of the hand.</p>
+  <p class="method">Part of <a href="../" style="color:inherit;font-weight:600">Poker Solver Lab</a>, which links every trainer and explorer in one place.</p>
+</div>
+
+<script>
+const GAMES6 = {"order":["3bp-ip","srp-SB","srp-BTN-blind","srp-CO-blind","3bp-oop","srp-HJ-blind","srp-UTG-blind","srp3","srp-ipcall","4bp-oop","4bp-ip"],"games":{"3bp-oop":{"k":2,"dead":0.9691,"start":[9.6093,9.6093],"ranges":[[9.80151,9.80138,9.79217,8.83761,7.43733,4.56906,3.00506,2.87833,1.79224,2.28307,1.76602,0.09931,0.02635,9.80151,9.80151,9.72226,7.34763,3.01511,0.00894,0.00087,0.00012,0.00012,0.00017,0.00017,0.00011,0.00012,9.74266,4.31437,9.80141,3.87085,0.73955,0.0072,0.00654,6e-05,0.0001,6e-05,0.0001,0.0001,4e-05,6.20393,1.48351,0.0071,9.79828,0.49551,0.05245,0.00168,4e-05,4e-05,4e-05,4e-05,4e-05,4e-05,4.31231,0.00079,0.0,0.00654,9.78545,0.01818,4e-05,0.0,4e-05,4e-05,4e-05,5e-05,5e-05,2.23233,5e-05,6e-05,0.0,4e-05,9.77858,9e-05,4e-05,4e-05,5e-05,5e-05,5e-05,0.00017,1.32402,5e-05,4e-05,4e-05,4e-05,4e-05,9.59966,0.00017,0.00014,5e-05,0.00014,0.00021,0.00026,0.00548,5e-05,4e-05,4e-05,4e-05,5e-05,5e-05,8.03175,0.00014,0.00015,0.00012,0.00023,0.00026,5e-05,5e-05,4e-05,4e-05,4e-05,5e-05,5e-05,0.00013,6.36987,0.00027,0.00017,0.00024,0.00026,6e-05,5e-05,4e-05,4e-05,5e-05,0.00012,0.00021,0.00017,0.00024,4.85927,0.00034,0.00023,0.00024,6e-05,5e-05,4e-05,4e-05,5e-05,0.00017,0.00026,0.00026,0.00026,0.00024,2.59734,0.00023,0.00024,0.00011,5e-05,4e-05,4e-05,0.00012,0.00022,0.00021,0.00022,0.00026,0.00026,0.00026,0.15519,0.00028,0.00011,5e-05,4e-05,5e-05,0.00011,0.00022,0.00021,0.00016,0.00016,0.00026,0.00026,0.00026,0.01557],[0.0,0.2828,5.84731,6.02345,6.18464,6.16407,4.72131,3.85932,2.85665,4.49136,3.66263,2.8322,2.76668,2.94666,0.00912,5.95413,6.07923,6.07671,4.2024,2.7427,2.64188,1.78165,1.15895,0.62776,0.11825,0.03576,5.89063,4.86249,1.56268,6.02224,5.64001,4.32169,1.92469,1.13796,0.35942,0.01873,0.00334,0.0,0.0,5.84719,3.10181,2.83635,3.19362,5.99833,4.17302,1.69646,0.04048,0.0,0.0,0.0,0.0,0.0,3.39685,1.76241,1.51089,1.82848,5.71364,4.07661,1.74118,0.57401,0.0,0.0,0.0,0.0,0.0,2.75122,0.04533,0.09587,0.0457,0.0242,6.1109,2.26542,1.0058,0.0,0.0,0.0,0.0,0.0,2.03254,0.00713,0.0,0.0,0.0,0.0,6.12261,1.11993,0.0,0.0,0.0,0.0,0.0,1.70538,0.00462,0.0,0.0,0.0,0.0,0.0,6.08378,0.68403,0.0,0.0,0.0,0.0,1.07307,0.00059,0.0,0.0,0.0,0.0,0.0,0.0,6.02694,0.0,0.0,0.0,0.0,1.14373,0.00046,0.0,0.0,0.0,0.0,0.0,0.0,0.0,5.6461,0.0,0.0,0.0,0.7343,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,4.72861,0.0,0.0,0.06741,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,3.6019,0.0,0.03194,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2.09546]],"label":"3-bet pot, 3-bettor out of position","roles":["3-bettor (out of position)","Caller (in position)"],"desc":"A blind 3-bet and the opener called.","share":0.1207,"pot":20.19},"srp-HJ-blind":{"k":2,"dead":0.5676,"start":[2.2063,2.2063],"ranges":[[0.0,8e-05,0.00942,0.02954,1.09564,2.89987,2.90071,2.88859,2.88625,2.88639,2.88617,2.87039,2.12225,0.0,0.0,0.05445,2.10797,2.84146,1.57067,1.57037,1.57037,1.57037,1.57029,1.57021,1.56998,1.56912,0.03045,2.37732,0.00015,2.74626,2.89458,1.57029,1.56873,1.56694,1.56686,1.56414,1.5558,1.55175,1.5505,2.29688,2.78823,1.57029,0.00224,2.86097,1.57029,1.56943,1.55712,1.55074,1.55066,1.5505,1.5505,1.54442,2.90503,1.57037,1.56928,1.56834,0.00925,1.57029,1.56935,1.56569,1.5505,1.5505,1.54442,1.53226,0.29186,2.89556,1.56935,1.56538,1.56484,1.55409,0.02249,1.56998,1.56772,1.55058,1.5505,1.47146,0.04864,0.01216,2.83421,1.55175,1.5505,1.5505,1.5505,1.5505,0.01622,1.56943,1.55206,1.5505,1.53226,0.00608,0.00608,1.57029,1.55159,1.50186,0.04256,1.54442,1.5505,1.5505,0.19555,1.56819,1.55058,1.5505,0.01216,0.0,1.57029,1.55128,0.91814,0.00608,0.0,0.01824,1.53226,1.54442,2.47634,1.56725,1.5505,1.53834,0.00608,1.57029,1.54497,0.01216,0.0,0.0,0.0,0.00608,0.01824,1.49578,2.90503,1.55409,1.5505,1.23432,1.57029,1.52641,0.00608,0.0,0.0,0.0,0.0,0.0,0.00608,0.01216,2.90496,1.54442,0.74789,1.57005,1.41089,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2.89676,0.02432,1.55564,0.28593,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.56224],[4.94616,4.92606,4.95956,4.96626,4.96626,4.95956,4.95286,4.95956,4.97296,4.94616,4.96626,4.95345,4.94675,4.89927,4.93276,4.93946,4.93946,4.95956,4.97296,0.0,0.0,0.0,0.0,0.0,0.0,0.0,4.96626,4.96626,4.94616,4.87247,4.95286,4.92056,0.0,0.0,0.0,0.0,0.0,0.0,0.0,4.97296,4.97296,4.73224,4.95286,4.94616,4.88096,0.0,0.0,0.0,0.0,0.0,0.0,0.0,4.97296,0.11701,0.0,0.0,4.95956,4.88647,0.0,0.0,0.0,0.0,0.0,0.0,0.0,4.96626,0.0,0.0,0.0,0.0,4.96626,0.0,0.0,0.0,0.0,0.0,0.0,0.0,4.90656,0.0,0.0,0.0,0.0,0.0,4.96626,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,4.96626,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,4.95286,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,4.96626,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,4.96626,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,4.93276,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.10242]],"label":"HJ opens, a blind calls","roles":["Blind (caller)","HJ (opener)"],"desc":"Single-raised pot. The blind acts first; the hijack has position.","share":0.1157,"pot":4.98},"4bp-oop":{"k":2,"dead":1.2426,"start":[17.213,17.213],"ranges":[[39.90897,39.72031,6.40949,0.00024,0.00015,0.00027,0.00018,0.0002,0.00015,0.0001,0.0,0.0,9e-05,15.82398,39.86353,0.00018,0.0,0.0,9e-05,1e-05,0.0001,0.0,0.0,0.0,0.0,0.0,0.01649,9e-05,39.15405,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,23.85844,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.00036,9e-05,0.0,0.0,11.92792,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.00024,0.0,0.0,0.0,0.0,3.84505,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.00011,0.0,0.0,6e-05,0.0,0.0,0.00024,0.0,0.0,0.0,0.0,0.0,0.0,9e-05,0.0,0.0,0.0,0.0,0.0,0.0,0.00134,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.00115,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.00069,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.00082,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.00035,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0],[0.0,0.07051,10.98769,10.96323,10.80672,9.3595,5.13359,3.06394,3.04948,3.06989,2.84929,1.13679,0.66333,5.2389,9.26884,10.94259,6.11272,3.0471,0.007,0.0,0.0,0.0,0.0,0.0,0.0,0.0,10.95506,3.11888,10.44318,3.06694,1.15007,0.02717,0.0,0.0,0.0,0.0,0.0,0.0,0.0,10.91393,0.01061,0.04952,10.54776,1.1595,1.13422,0.0,0.0,0.0,0.0,0.0,0.0,0.0,6.45953,0.0,0.0,0.0,10.83359,1.14337,0.07752,0.0,0.0,0.0,0.0,0.0,0.0,2.18641,0.0,0.0,0.0,0.0,8.25956,0.02215,0.00256,9e-05,0.0,0.0,0.0,0.0,0.75866,0.0,0.0,0.0,0.0,0.0,8.45435,0.00861,0.00078,0.0,0.0,0.0,0.0,1e-05,0.0,0.0,0.0,0.0,0.0,0.0,7.01772,0.00791,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,7.17908,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,4.84108,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,3.0681,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.18408,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.14345]],"label":"4-bet pot, 4-bettor out of position","roles":["4-bettor (out of position)","Caller (in position)"],"desc":"A 4-bet was called; the caller has position.","share":0.0191,"pot":35.67},"srp3":{"k":3,"dead":0.1718,"start":[2.26,2.26,2.26],"ranges":[[0.00918,0.01178,0.00863,0.43889,2.1395,5.56543,7.85114,7.6334,7.56937,7.24925,7.61184,8.49371,7.23019,0.01111,0.00973,0.0981,3.6057,7.0647,4.114,1.37537,0.71094,0.63414,0.47096,0.1116,0.14224,0.00617,0.04903,6.08476,0.00923,7.12621,7.65251,1.23637,0.15718,0.0171,0.01255,0.04323,0.00466,0.00444,0.0013,3.92939,6.61584,2.82946,0.01027,6.60311,1.21378,0.20283,0.02051,0.004,0.03283,0.00219,0.00188,0.00063,5.9732,3.76545,0.68237,0.23292,0.01088,1.21756,0.71907,0.08493,0.0019,0.03375,0.00086,0.0,0.0,8.70565,0.07712,0.0133,0.0319,0.0204,0.01618,1.14532,0.15952,0.00379,0.02823,0.00028,0.0,0.0,6.73197,0.00769,0.00217,0.00258,0.00191,0.00188,0.02027,0.1954,0.07959,0.03535,0.00168,0.0,0.0,6.44806,0.00563,0.00066,0.00063,0.00063,0.00063,0.00063,1.47212,0.13428,0.04293,0.0017,0.0,0.0,2.27551,0.00344,0.00065,0.0,0.0,0.0,0.0,0.0,4.00093,0.0465,0.00171,0.0,0.0,1.92119,0.02161,0.01594,0.01549,0.01567,0.02956,0.02974,0.0301,0.03081,5.77116,0.02647,0.0,0.0,1.19509,0.00208,0.00075,0.00011,0.00026,0.0005,0.00046,0.00056,0.0007,0.00088,7.71961,0.0,0.0,0.69379,0.00188,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,8.3879,0.0,0.68544,0.00063,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2.87279],[1.54905,1.54705,1.54574,1.55182,2.27067,3.23285,3.71553,4.1751,4.28163,4.00356,3.78227,4.01466,4.10778,1.57104,1.55198,1.5639,1.77042,3.1181,4.87082,2.82674,2.74874,2.56012,1.50551,1.3708,0.4457,0.38249,1.56,3.15009,1.54912,3.8621,4.29407,4.21254,1.38723,0.38892,0.37366,0.29406,0.22936,0.20509,0.09563,2.64803,4.5391,4.14368,1.55183,4.58581,4.20627,1.45981,0.28684,0.14896,0.11668,0.06876,0.05192,0.02245,3.25125,2.85962,2.70708,2.44454,1.54948,4.22173,2.4966,0.3953,0.167,0.03508,0.02386,0.01544,0.00702,4.54582,0.64239,0.37267,0.29888,0.36656,1.55064,2.7049,1.29139,0.23015,0.01965,0.00421,0.0014,0.0014,3.87131,0.41946,0.11247,0.083,0.14314,0.13191,1.5532,1.34102,0.36695,0.05333,0.0014,0.0,0.0,3.54921,0.39321,0.0421,0.02105,0.02386,0.01965,0.02386,2.02316,1.12669,0.15858,0.00281,0.0,0.0,3.5514,0.33303,0.03368,0.00842,0.00561,0.00421,0.0014,0.0014,2.37859,0.35084,0.00842,0.0,0.0,3.55201,0.25482,0.02386,0.00702,0.0014,0.0,0.0,0.0,0.0,3.35193,0.10244,0.0014,0.0,3.45866,0.19948,0.01544,0.00421,0.0,0.0,0.0,0.0,0.0,0.0,4.22096,0.0,0.0,2.68304,0.18384,0.01123,0.00281,0.0,0.0,0.0,0.0,0.0,0.0,0.0,3.99816,0.0,2.67479,0.0828,0.00702,0.0014,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,3.55526],[2.89982,2.88834,2.91336,3.02249,3.14822,5.16464,7.15409,7.48146,5.58883,5.62166,3.60727,2.29737,2.24326,2.86036,2.88424,3.0378,5.59703,7.42308,2.99734,1.23483,1.31079,1.03776,0.51369,0.41759,0.3584,0.33232,2.96931,7.47207,2.89278,7.38143,5.004,2.35129,0.55043,0.5375,0.37459,0.16603,0.00196,0.00063,0.00064,3.16967,4.50171,2.23421,2.90766,3.05201,2.23275,0.46713,0.02267,0.00072,0.0007,0.0007,0.0007,0.00071,5.28543,1.25969,1.30147,0.51661,2.99134,2.17586,0.42816,0.1897,0.00065,0.00068,0.00067,0.00066,0.00057,5.63652,0.37447,0.36054,0.18453,0.01382,3.09328,0.91746,0.32563,0.00064,0.00063,0.00042,0.00028,0.00013,4.02363,0.35746,0.00054,0.00073,0.0007,0.00067,3.09143,0.33306,0.00061,0.00052,0.00012,0.0,0.0,1.25509,0.36318,0.00066,0.00074,0.00071,0.00067,0.00058,3.08615,0.22556,0.00039,1e-05,0.0,0.0,1.22888,0.18922,0.00068,0.00076,0.00067,0.00052,0.00029,7e-05,5.01349,0.00028,0.0,0.0,0.0,1.20493,0.00285,0.00069,0.00075,0.00049,0.0001,0.0,0.0,0.0,9.58284,0.0,0.0,0.0,0.74453,0.00026,0.0007,0.00072,0.00034,0.0,0.0,0.0,0.0,0.0,7.59621,0.0,0.0,0.34215,0.00027,0.0007,0.00064,0.00013,0.0,0.0,0.0,0.0,0.0,0.0,9.36798,0.0,0.3379,0.00029,0.0007,0.00053,1e-05,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.08569]],"label":"Three-way single-raised pot","roles":["Out of position","Middle seat","In position"],"desc":"An open and two callers. Bets are half pot while three players are in.","share":0.0234,"pot":6.95},"srp-CO-blind":{"k":2,"dead":0.5541,"start":[2.2092,2.2092],"ranges":[[0.0,9e-05,0.00058,0.00145,0.02852,1.47529,2.69246,2.69315,2.68494,2.68045,2.67864,2.67819,2.67521,0.0,0.0,0.00923,0.29171,2.68626,1.47275,1.46435,1.46416,1.46416,1.46416,1.46416,1.46416,1.46396,0.02831,2.03764,0.0,1.61399,2.47143,1.46425,1.46416,1.46376,1.46366,1.46317,1.45702,1.45424,1.44809,0.04035,2.6797,1.46433,0.0001,2.67345,1.46416,1.46416,1.46317,1.45484,1.45275,1.44611,1.44432,1.44006,1.62849,1.46443,1.46386,1.46406,0.012,1.46426,1.46426,1.46396,1.45216,1.44194,1.43946,1.43907,1.43897,2.68923,1.46406,1.46307,1.46317,1.46337,0.00932,1.46426,1.46406,1.45454,1.43897,1.43897,1.43897,1.43897,2.68224,1.46287,1.44621,1.45117,1.45374,1.44878,0.00475,1.46416,1.46366,1.44819,1.43897,1.43897,0.0,2.66747,1.45355,1.43897,1.43897,1.43897,1.43897,1.43907,0.02258,1.46406,1.45593,1.43897,1.43897,0.0,1.46426,1.45047,1.43897,0.0,0.0,1.43897,1.43897,1.43897,0.02883,1.46366,1.44759,1.43897,0.0,1.46426,1.44621,1.43332,0.0,0.0,0.0,0.0,1.43897,1.43897,1.45431,1.45761,1.44125,1.43897,1.46426,1.44085,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.43897,2.69064,1.43907,1.43897,1.46416,1.44026,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2.68886,1.43897,1.46416,1.43926,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2.60714],[3.7494,3.75859,3.77239,3.77239,3.77239,3.76779,3.7494,3.76779,3.76779,3.76779,3.77239,3.77239,3.76779,3.64825,3.73561,3.72641,3.75859,3.77239,3.76779,3.76779,3.76779,2.48534,0.0,0.0,0.0,0.0,3.77239,3.77239,3.7494,3.57469,3.76319,3.76779,0.0,0.0,0.0,0.0,0.0,0.0,0.0,3.77239,3.77239,3.76779,3.7402,3.754,3.76779,0.0,0.0,0.0,0.0,0.0,0.0,0.0,3.76779,3.76779,3.71321,0.0,3.76779,3.76319,0.07497,0.0,0.0,0.0,0.0,0.0,0.0,3.76779,0.0,0.0,0.0,0.0,3.77239,2.8676,0.0,0.0,0.0,0.0,0.0,0.0,3.76779,0.0,0.0,0.0,0.0,0.0,3.77239,0.0,0.0,0.0,0.0,0.0,0.0,3.76779,0.0,0.0,0.0,0.0,0.0,0.0,3.77239,0.0,0.0,0.0,0.0,0.0,3.76319,0.0,0.0,0.0,0.0,0.0,0.0,0.0,3.77239,0.0,0.0,0.0,0.0,3.76319,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,3.754,0.0,0.0,0.0,1.68388,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,3.76779,0.0,0.0,0.0102,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,3.76319,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,3.60127]],"label":"CO opens, a blind calls","roles":["Blind (caller)","CO (opener)"],"desc":"Single-raised pot. The blind acts first; the cutoff has position.","share":0.1416,"pot":4.97},"srp-ipcall":{"k":2,"dead":1.5,"start":[2.2169,2.2169],"ranges":[[5.38083,5.40235,5.31701,5.31001,5.31001,5.33379,5.36247,5.33379,5.29792,5.33687,2.96038,2.50816,2.52059,5.5491,5.4111,5.40358,5.34336,5.31701,5.26471,0.46471,0.46471,0.30259,0.0,0.0,0.0,0.0,5.31001,5.31001,5.38083,5.65248,5.34621,2.56324,0.0,0.0,0.0,0.0,0.0,0.0,0.0,5.30301,5.28157,2.43186,5.38467,5.38676,2.53247,0.0,0.0,0.0,0.0,0.0,0.0,0.0,5.31978,0.51311,0.45209,0.0,5.32243,2.64453,0.02707,0.0,0.0,0.0,0.0,0.0,0.0,5.22885,0.0,0.0,0.0,0.0,5.31001,0.66008,0.0,0.0,0.0,0.0,0.0,0.0,2.56261,0.0,0.0,0.0,0.0,0.0,5.31001,0.0,0.0,0.0,0.0,0.0,0.0,0.46471,0.0,0.0,0.0,0.0,0.0,0.0,5.32136,0.0,0.0,0.0,0.0,0.0,0.47014,0.0,0.0,0.0,0.0,0.0,0.0,0.0,5.33537,0.0,0.0,0.0,0.0,0.47014,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,5.34304,0.0,0.0,0.0,0.24687,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,5.33814,0.0,0.0,0.00722,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2.64644,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.76234],[0.0,0.00076,0.0,0.00015,0.10453,7.9894,14.28918,15.35963,7.85907,8.08045,3.70466,0.08973,0.00356,0.0,0.0,0.26175,9.6609,15.42283,0.00594,0.00089,0.00089,0.00089,0.00045,0.00045,0.0,0.0,0.1648,15.30115,0.00038,15.44585,6.0458,0.00981,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.28487,4.12574,0.00045,0.00077,0.20338,0.00575,0.0,0.0,0.0,0.0,0.0,0.0,0.0,8.38108,0.00045,0.0,0.0,0.03904,0.02966,0.0,0.0,0.0,0.0,0.0,0.0,0.0,7.93082,0.00045,0.0,0.0,0.0,0.08074,0.0,0.0,0.0,0.0,0.0,0.0,0.0,5.00643,0.0,0.0,0.0,0.0,0.0,0.02645,0.0,0.0,0.0,0.0,0.0,0.0,0.00193,0.0,0.0,0.0,0.0,0.0,0.0,0.06703,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,7.67695,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,21.82968,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,15.62376,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,23.47951,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.06179]],"label":"Open, cold call in position","roles":["Opener","Caller (in position)"],"desc":"Single-raised pot where a later seat flat-calls the open.","share":0.0205,"pot":5.93},"srp-SB":{"k":2,"dead":0.0,"start":[3.0,3.0],"ranges":[[2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,0.01842,0.0,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,0.0,0.0,0.0,0.0,0.0,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,2.34865,0.01842,0.0,0.0,0.0,0.0,0.0,2.34865,2.34865,2.34865,2.34865,2.28417,2.34865,2.34865,0.0,0.0,0.0,0.0,0.0,0.0,2.34865,2.34865,2.34865,0.00921,0.0,0.0,2.34865,0.0,0.0,0.0,0.0,0.0,0.0,2.34865,2.34865,0.0,0.0,0.0,0.0,0.0,2.34865,0.0,0.0,0.0,0.0,0.0,2.34865,2.34865,0.0,0.0,0.0,0.0,0.0,0.0,2.34865,0.0,0.0,0.0,0.0,2.34865,2.34865,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2.34865,0.0,0.0,0.0,2.34865,2.1276,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2.34865,0.0,0.0,2.34865,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2.34865,0.0,2.34865,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2.32102],[0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.023,0.62102,0.0,0.0,0.0,0.0,0.0,1.46054,1.46629,1.46629,1.46629,1.46629,1.46629,1.46629,1.46629,0.0,0.0,0.0,0.0,0.0,1.43179,1.46629,1.46629,1.46629,1.46629,1.46629,1.46629,1.46629,0.0,1.45479,1.40304,0.0,0.0,0.01725,1.46629,1.46629,1.46629,1.46629,1.46629,1.46629,1.46629,0.0,1.46629,1.46629,1.46629,0.0,0.00575,1.32829,1.46629,1.46629,1.46629,1.46629,1.46629,1.46629,0.00575,1.46629,1.46629,1.46629,1.46629,0.0,0.023,0.63252,1.46054,1.46629,1.46629,1.46629,1.46629,1.46054,1.46629,1.46629,1.46629,1.46629,1.44329,0.0,0.0575,1.33979,1.46629,1.46629,1.46629,1.46629,1.46629,1.46629,1.46629,1.46629,1.46629,1.46629,1.46629,0.0,1.14428,1.46629,1.46629,1.46629,1.46629,1.46629,1.46629,1.46629,1.46629,1.46629,1.46629,1.46629,1.46629,0.0,1.46629,1.46629,1.46629,1.46629,1.46629,1.46629,1.46629,1.46629,1.46629,1.46054,1.46629,1.46629,1.46629,0.0,1.46629,1.46629,1.46629,1.46629,1.46629,1.46629,1.46629,1.34554,0.0,0.00575,1.46054,1.46629,1.46629,0.0,1.46629,1.46629,1.46629,1.46629,1.46629,1.46629,0.0115,0.0,0.0,0.0,0.01725,1.46629,1.46054,0.0,1.46629,1.46629,1.46629,1.46629,1.45479,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.00575]],"label":"SB opens, BB calls","roles":["SB (opener)","BB (caller)"],"desc":"Blind against blind. The small blind acts first.","share":0.1513,"pot":6},"3bp-ip":{"k":2,"dead":1.3623,"start":[7.0411,7.0411],"ranges":[[0.0,0.02501,5.09641,6.01978,6.0137,6.00741,6.00542,6.00523,5.84908,5.9964,3.90249,3.48356,3.16034,3.65653,0.0003,5.99687,5.99811,6.01317,5.95658,1.09311,1.08975,0.71904,0.0,0.0,0.0,0.0,6.01177,6.03529,0.12481,5.9546,6.01806,3.49162,0.0,0.0,0.0,0.0,0.0,7e-05,0.0,6.01762,5.97504,3.31608,2.58715,6.0005,3.44359,0.0,0.0,0.0,0.0,0.0,0.0,0.0,6.00185,1.13659,1.07427,0.0,4.32723,3.47735,0.02283,0.00011,0.0,0.0,0.0,0.0,0.0,3.40647,4e-05,0.0,0.0,0.0,5.45624,0.85001,0.0,0.0,0.0,0.0,0.0,0.0,2.64511,0.0,0.0,7e-05,0.0,0.0,6.01359,0.0,0.0,0.0,0.0,0.0,0.0,1.09961,0.0,0.0,0.0,0.0,0.0,0.0,6.01122,0.0,0.0,0.0,0.0,0.0,1.08875,0.0,0.0,0.0,0.0,0.0,0.0,0.0,6.00859,0.0,0.0,0.0,0.0,1.09064,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,6.02139,0.0,0.0,0.0,0.4697,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,6.00691,0.0,0.0,0.00024,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,3.53183,0.0,4e-05,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.06583],[9.23611,9.236,9.23606,9.23588,9.2202,7.7269,4.03442,2.2236,2.21432,2.22775,2.03311,0.51433,0.29949,9.23611,9.23611,9.19443,4.86675,2.21201,0.00413,9e-05,0.0,0.0,0.0,0.0,0.0,0.0,9.21546,2.27708,9.23606,2.23197,0.52526,0.01249,0.0,0.0,0.0,0.0,0.0,0.0,0.0,9.19623,0.00713,0.02289,9.23596,0.53342,0.51104,0.0,0.0,0.0,0.0,0.0,0.0,0.0,5.17223,3e-05,0.0,0.0,9.23193,0.5153,0.04866,0.0,0.0,0.0,0.0,0.0,0.0,2.1995,0.0,0.0,0.0,0.0,9.22625,0.50889,0.29398,0.00203,0.0,0.0,0.0,0.0,0.68951,0.0,0.0,0.0,0.0,0.00811,9.23254,0.4947,0.0446,0.0,0.0,0.0,0.0,2e-05,0.0,0.0,0.0,0.0,0.0,0.0,9.22679,0.11354,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,8.00426,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,4.90292,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,3.55608,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.56716,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.51561]],"label":"3-bet pot, 3-bettor in position","roles":["Caller (out of position)","3-bettor (in position)"],"desc":"The opener called a 3-bet from a later seat.","share":0.1584,"pot":15.44},"srp-UTG-blind":{"k":2,"dead":0.567,"start":[2.2019,2.2019],"ranges":[[0.0,0.0,0.00956,2.2071,3.42201,3.42913,3.4225,3.42174,3.40271,3.41526,3.26427,1.81749,1.81746,0.0,0.0,0.07633,1.17941,3.40841,1.81752,1.81749,1.81746,1.8155,1.81185,1.81042,1.81014,1.80976,0.04901,3.42186,0.0,3.397,1.81789,1.81752,1.81285,1.80998,1.8096,1.80957,1.80957,1.80957,1.80957,3.42883,1.81759,1.81752,0.00531,1.81756,1.81749,1.81447,1.8096,1.80957,1.80957,1.80957,1.80957,1.49733,3.42663,1.81749,1.81559,1.81219,0.01039,1.81752,1.81656,1.80957,1.80957,1.80957,1.80248,0.0,0.0,3.37123,1.81054,1.80976,1.81004,1.80957,0.00963,1.81634,1.80964,1.80957,1.80957,0.0,0.0,0.0,1.81749,1.8096,1.80957,1.80957,1.80957,1.80957,0.48878,1.8164,1.80957,1.80957,0.0,0.0,0.0,1.81584,1.8096,0.0,0.0,0.0,1.80957,1.80957,3.32226,1.81319,1.80957,1.80957,0.0,0.0,1.813,1.80957,0.0,0.0,0.0,0.0,0.0,1.78119,3.42923,1.8096,1.80957,0.0071,0.0,1.81593,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,3.42889,1.80957,1.80957,0.0,1.81051,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,3.42489,1.80957,0.0,1.81038,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.81749,0.0,1.80995,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.81656],[6.18302,6.1726,6.20385,6.20385,6.20385,6.19344,6.19344,6.19344,6.14478,6.16911,0.97315,0.0,0.0,6.18302,6.18302,6.19344,6.17952,6.20385,6.10654,0.0,0.0,0.0,0.0,0.0,0.0,0.0,6.20385,6.20385,6.18302,6.19344,6.19344,0.09731,0.0,0.0,0.0,0.0,0.0,0.0,0.0,6.20385,6.12045,0.0,6.18302,6.1726,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,6.19344,0.0,0.0,0.0,6.20385,0.05215,0.0,0.0,0.0,0.0,0.0,0.0,0.0,5.93973,0.0,0.0,0.0,0.0,6.20385,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,6.20385,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,6.19344,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,6.19344,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,6.19344,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,6.18302,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.10081,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]],"label":"UTG opens, a blind calls","roles":["Blind (caller)","UTG (opener)"],"desc":"Single-raised pot. The blind acts first; UTG has position.","share":0.0941,"pot":4.97},"srp-BTN-blind":{"k":2,"dead":0.5387,"start":[2.5345,2.5345],"ranges":[[0.0,0.0,0.0,0.0,0.0,0.78066,0.91729,0.97364,2.08206,1.28633,1.8894,3.10157,3.07683,0.0,0.0,0.0,0.01076,0.97606,3.03848,2.00753,1.80863,1.79856,1.79627,1.79627,1.79627,1.79627,0.0,0.29087,0.0,0.29862,2.47312,1.79056,1.7814,1.79627,1.79255,1.79255,1.78883,1.78512,1.74422,0.5539,2.40284,2.28017,0.0,1.35478,1.6796,1.79255,1.78883,1.77025,1.75166,1.41337,0.89293,0.85576,0.91077,2.85404,1.79856,1.77768,0.0,1.75767,1.79627,1.79255,1.74051,0.86319,0.85576,0.85204,0.85204,1.68653,1.80175,1.79627,1.79255,1.78883,0.0,1.79627,1.79255,1.7814,0.85947,0.85204,0.85204,0.84832,2.60053,1.79627,1.74051,1.66616,1.74051,1.72935,0.0,1.79255,1.78883,1.61411,0.85204,0.84832,0.84832,3.12157,1.79255,0.85576,0.85204,0.85204,0.85576,0.86319,0.0,1.79255,1.77768,0.86319,0.84832,0.82836,2.13948,1.78883,0.85204,0.84832,0.84832,0.84832,0.85204,0.85204,0.00743,1.78883,1.42452,0.85204,0.845,2.0176,1.77025,0.85204,0.84832,0.01996,0.01663,0.84832,0.84832,0.85204,0.04741,1.7814,0.88178,0.85204,1.80863,1.37248,0.85204,0.11976,0.01331,0.00333,0.00333,0.01663,0.845,0.84832,1.09098,0.87063,0.85204,1.80175,0.89665,0.85204,0.02661,0.00665,0.00333,0.0,0.0,0.00333,0.05323,0.01663,3.01773,0.85204,1.80175,0.86319,0.84832,0.00998,0.00333,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.80773],[2.13184,2.11517,2.13184,2.62752,3.10655,3.13571,2.90661,2.80664,2.84829,2.76915,2.81497,2.76915,2.64002,2.11517,2.09435,2.50673,2.62752,2.46507,2.54838,2.76498,3.12321,3.04824,2.92327,2.4734,2.19445,2.05793,2.2443,2.81081,2.09851,2.52339,2.91494,3.11905,3.09406,3.03171,2.24981,1.02876,0.0082,0.0,0.0,3.04407,3.06073,2.81497,2.16099,2.63586,2.67751,2.7025,0.13531,0.0,0.0,0.0,0.0,0.0,3.13988,2.76498,3.13155,2.93577,2.4734,2.38593,2.44841,1.17631,0.0,0.0,0.0,0.0,0.0,3.14404,2.2693,2.20278,1.13962,0.08197,2.89828,2.09851,2.02461,0.0,0.0,0.0,0.0,0.0,3.11488,2.19029,0.0,0.0,0.0,0.0,2.92327,2.06976,0.0,0.0,0.0,0.0,0.0,2.85663,2.21152,0.0,0.0,0.0,0.0,0.0,2.84829,1.40165,0.0,0.0,0.0,0.0,2.73999,1.17241,0.0,0.0,0.0,0.0,0.0,0.0,2.77748,0.0,0.0,0.0,0.0,2.62752,0.01639,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2.97742,0.0,0.0,0.0,2.41925,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2.86496,0.0,0.0,2.10684,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2.33594,0.0,2.09851,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2.08615]],"label":"BTN opens, a blind calls","roles":["Blind (caller)","BTN (opener)"],"desc":"Single-raised pot. The blind acts first; the button has position.","share":0.1442,"pot":5.61},"4bp-ip":{"k":2,"dead":0.9914,"start":[23.8176,23.8176],"ranges":[[0.0,0.21563,14.85394,13.30126,10.92543,5.40584,2.78672,2.5708,1.6437,3.26685,1.84159,0.08695,0.00531,10.10337,11.33129,11.5695,8.07808,2.70787,0.00727,0.00189,0.0,0.0,3e-05,1e-05,0.0,0.0,12.77896,4.9821,14.92675,3.55937,1.89232,0.00286,0.00028,0.0,0.0,0.0,0.0,0.0,0.0,5.91242,0.10413,0.00896,13.75896,0.39129,0.00098,5e-05,0.0,0.0,0.0,0.0,0.0,0.0,1.2536,0.00038,0.0,0.0,14.49652,0.00051,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.17916,0.0,0.0,0.0,0.0,9.57973,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.05183,0.0,0.0,0.0,0.0,0.0,9.29809,0.0,0.0,0.0,0.0,0.0,0.0,0.00024,0.0,0.0,0.0,0.0,0.0,0.0,7.03543,0.0,0.0,0.0,0.0,0.0,3e-05,0.0,0.0,0.0,0.0,0.0,0.0,0.0,6.5159,0.0,0.0,0.0,0.0,7e-05,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,3.9841,0.0,0.0,0.0,5e-05,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2.5572,0.0,0.0,4e-05,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.01841,0.0,2e-05,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.00266],[43.67331,42.00216,0.02994,0.00017,0.00384,0.00333,0.00083,0.00103,0.00069,0.001,0.00015,0.0,0.00049,23.06012,43.4351,0.03954,0.03517,0.10342,0.00039,0.00015,0.00109,0.0,0.0,0.0,0.0,0.0,0.01665,0.05328,34.16597,0.05721,0.01194,0.00131,0.0,0.0,0.0,0.00026,0.00042,0.0,0.0,0.00541,3e-05,0.00018,22.66325,0.00076,0.00029,0.0,0.00026,0.0,0.0,0.0,0.0,0.0,0.00384,0.00027,0.00104,0.0,2.28668,0.00117,0.0,0.00026,0.0,0.0,0.0,0.0,0.0,0.00239,0.0,0.0,0.0,0.0,0.05751,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.00282,0.0,0.0,0.0,0.0,0.0,0.01888,0.00026,0.0,0.0,0.0,0.0,0.0,0.00035,0.0,0.0,0.0,0.0,0.0,0.0,0.04931,0.0,0.0,0.0,0.0,0.0,0.00023,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.06221,0.0,0.0,0.0,0.0,0.00023,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0504,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.03968,0.0,0.0,0.00012,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.00399,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.00142]],"label":"4-bet pot, 4-bettor in position","roles":["Caller (out of position)","4-bettor (in position)"],"desc":"A 4-bet was called; the 4-bettor has position.","share":0.0111,"pot":48.63}}};
+</script>
+<script>
+// Hand evaluation and bucketing, a line-for-line port of hu.c so the page sees the same buckets the solver trained on.
+// Cards: rank*4 + suit, rank 0 = deuce .. 12 = ace.
+const STRAIGHT_HI = new Int8Array(8192);
+for (let m = 0; m < 8192; m++) {
+  const m2 = (m << 1) | ((m >> 12) & 1);
+  const s = m2 & (m2 >> 1) & (m2 >> 2) & (m2 >> 3) & (m2 >> 4);
+  STRAIGHT_HI[m] = s ? 31 - Math.clz32(s) : -1;
+}
+function topBits(mask, n) {
+  let v = 0, k = 0;
+  for (let r = 12; r >= 0 && k < n; r--) if ((mask >> r) & 1) { v = v * 16 + r; k++; }
+  return v;
+}
+const rc = new Int8Array(13), sm = new Int32Array(4), sc = new Int8Array(4);
+function eval7(c) {
+  rc.fill(0); sm.fill(0); sc.fill(0);
+  let m = 0;
+  for (let i = 0; i < c.length; i++) { const r = c[i] >> 2, s = c[i] & 3; rc[r]++; sm[s] |= 1 << r; sc[s]++; m |= 1 << r; }
+  for (let s = 0; s < 4; s++) if (sc[s] >= 5) {
+    const sh = STRAIGHT_HI[sm[s]];
+    if (sh >= 0) return (8 << 20) | sh;
+    return (5 << 20) | topBits(sm[s], 5);
+  }
+  let quad = -1, t1 = -1, t2 = -1, p1 = -1, p2 = -1;
+  for (let r = 12; r >= 0; r--) {
+    if (rc[r] === 4) quad = r;
+    else if (rc[r] === 3) { if (t1 < 0) t1 = r; else if (t2 < 0) t2 = r; }
+    else if (rc[r] === 2) { if (p1 < 0) p1 = r; else if (p2 < 0) p2 = r; }
+  }
+  if (quad >= 0) return (7 << 20) | (quad << 4) | topBits(m & ~(1 << quad), 1);
+  if (t1 >= 0 && (t2 >= 0 || p1 >= 0)) return (6 << 20) | (t1 << 4) | Math.max(t2, p1);
+  const sh = STRAIGHT_HI[m];
+  if (sh >= 0) return (4 << 20) | sh;
+  if (t1 >= 0) return (3 << 20) | (t1 << 8) | topBits(m & ~(1 << t1), 2);
+  if (p1 >= 0 && p2 >= 0) return (2 << 20) | (p1 << 8) | (p2 << 4) | topBits(m & ~(1 << p1) & ~(1 << p2), 1);
+  if (p1 >= 0) return (1 << 20) | (p1 << 12) | topBits(m & ~(1 << p1), 3);
+  return topBits(m, 5);
+}
+const CATEGORY = ['High card', 'Pair', 'Two pair', 'Three of a kind', 'Straight', 'Flush', 'Full house', 'Four of a kind', 'Straight flush'];
+
+function handClass(a, b) {
+  const r1 = 12 - (a >> 2), r2 = 12 - (b >> 2);
+  const hi = Math.min(r1, r2), lo = Math.max(r1, r2);
+  if (hi === lo) return hi * 13 + hi;
+  return (a & 3) === (b & 3) ? hi * 13 + lo : lo * 13 + hi;
+}
+
+// For each target hand, num = 2*wins + ties vs every opponent hand on this 5-card board (out of 1980).
+const scratch = new Int32Array(7);
+function riverNums(board5, targets) {
+  const used = new Uint8Array(52);
+  for (const c of board5) used[c] = 1;
+  const ranks = [], ha = [], hb = [];
+  for (let i = 0; i < 5; i++) scratch[i + 2] = board5[i];
+  for (let b = 1; b < 52; b++) {
+    if (used[b]) continue;
+    for (let a = 0; a < b; a++) {
+      if (used[a]) continue;
+      scratch[0] = a; scratch[1] = b;
+      ranks.push(eval7(scratch)); ha.push(a); hb.push(b);
+    }
+  }
+  return targets.map(([x, y]) => {
+    if (used[x] || used[y]) return -1;
+    scratch[0] = x; scratch[1] = y;
+    const me = eval7(scratch);
+    let num = 0;
+    for (let k = 0; k < ranks.length; k++) {
+      const a = ha[k], b = hb[k];
+      if (a === x || a === y || b === x || b === y) continue;
+      num += ranks[k] < me ? 2 : ranks[k] === me ? 1 : 0;
+    }
+    return num;
+  });
+}
+
+// Flop (3 cards) or turn (4 cards) features: S1 = sum of num over runouts, S2 = sum of num^2, cnt = runouts.
+function features(board, targets) {
+  const used = new Uint8Array(52);
+  for (const c of board) used[c] = 1;
+  const S1 = targets.map(() => 0), S2 = targets.map(() => 0), cnt = targets.map(() => 0);
+  const add = (b5, extra) => {
+    const nums = riverNums(b5, targets);
+    nums.forEach((v, i) => { if (v >= 0) { S1[i] += v; S2[i] += v * v; cnt[i]++; } });
+  };
+  if (board.length === 4) {
+    for (let r = 0; r < 52; r++) if (!used[r]) add([...board, r]);
+  } else {
+    for (let t = 0; t < 52; t++) {
+      if (used[t]) continue;
+      for (let r = t + 1; r < 52; r++) if (!used[r]) add([...board, t, r]);
+    }
+  }
+  return targets.map((_, i) => ({ S1: S1[i], S2: S2[i], cnt: cnt[i] }));
+}
+
+function bucketRiver(edges, num) { let b = 0; while (b < edges.river.length && num >= edges.river[b]) b++; return b; }
+
+// All buckets for both players for a full deal. holes = [[a,b],[c,d]], board = 5 cards.
+function dealBuckets(edges, holes, board) {
+  const VBn = edges.VB;
+  const out = holes.map(([a, b]) => ({ cls: handClass(a, b), flop: 0, turn: 0, river: 0, eq: [0, 0, 0], spread: [0, 0] }));
+  const ff = features(board.slice(0, 3), holes);
+  ff.forEach((f, i) => {
+    const V = f.cnt * f.S2 - f.S1 * f.S1;
+    out[i].flop = bucket2v(edges.flop, f.S1, V, VBn);
+    out[i].eq[0] = f.S1 / (f.cnt * 1980);
+    out[i].spread[0] = Math.sqrt(Math.max(0, V)) / (f.cnt * 1980);
+  });
+  const tf = features(board.slice(0, 4), holes);
+  tf.forEach((f, i) => {
+    const V = f.cnt * f.S2 - f.S1 * f.S1;
+    out[i].turn = bucket2v(edges.turn, f.S1, V, VBn);
+    out[i].eq[1] = f.S1 / (f.cnt * 1980);
+    out[i].spread[1] = Math.sqrt(Math.max(0, V)) / (f.cnt * 1980);
+  });
+  riverNums(board, holes).forEach((n, i) => { out[i].river = bucketRiver(edges, n); out[i].eq[2] = n / 1980; });
+  return out;
+}
+function bucket2v(e, S1, V, VBn) {
+  let b = 0; while (b < e.eh.length && S1 >= e.eh[b]) b++;
+  let v = 0; while (v < e.v[b].length && V >= e.v[b][v]) v++;
+  return b * VBn + v;
+}
+function showdownRank(hole, board) { return eval7([hole[0], hole[1], ...board]); }
+const evalCards = eval7;
+
+if (typeof module !== 'undefined') module.exports = { eval7, evalCards, handClass, riverNums, features, dealBuckets, showdownRank, CATEGORY };
+
+// ---------- all-hands bucketing (for the spot explorer) ----------
+// num for every one of the 1326 combos on a 5-card board, by sorting ranks once: same counts as riverNums.
+const HA = new Int8Array(1326), HB = new Int8Array(1326);
+for (let b = 1, h = 0; b < 52; b++) for (let a = 0; a < b; a++, h++) { HA[h] = a; HB[h] = b; }
+const hidx = (a, b) => (a < b ? (b * (b - 1)) / 2 + a : (a * (a - 1)) / 2 + b);
+function riverNumsAll(board5, out) {
+  const used = new Uint8Array(52); for (const c of board5) used[c] = 1;
+  const list = [];
+  for (let i = 0; i < 5; i++) scratch[i + 2] = board5[i];
+  for (let h = 0; h < 1326; h++) {
+    const a = HA[h], b = HB[h];
+    if (used[a] || used[b]) { out[h] = -1; continue; }
+    scratch[0] = a; scratch[1] = b; list.push([eval7(scratch), h]);
+  }
+  list.sort((x, y) => x[0] - y[0]);
+  const Wc = new Int32Array(52), Gc = new Int32Array(52); let W = 0;
+  for (let i = 0; i < list.length;) {
+    let j = i; while (j < list.length && list[j][0] === list[i][0]) j++;
+    const G = j - i;
+    for (let k = i; k < j; k++) { const h = list[k][1]; Gc[HA[h]]++; Gc[HB[h]]++; }
+    for (let k = i; k < j; k++) { const h = list[k][1], a = HA[h], b = HB[h]; out[h] = 2 * (W - Wc[a] - Wc[b]) + (G - Gc[a] - Gc[b] + 1); }
+    for (let k = i; k < j; k++) { const h = list[k][1], a = HA[h], b = HB[h]; Gc[a]--; Gc[b]--; Wc[a]++; Wc[b]++; }
+    W += G; i = j;
+  }
+}
+// Buckets for all 1326 combos on a board of 3, 4 or 5 cards; -1 where a combo uses a board card.
+function allBuckets(edges, board) {
+  const out = new Int16Array(1326).fill(-1), eq = new Float32Array(1326);
+  const num = new Int32Array(1326);
+  if (board.length === 5) {
+    riverNumsAll(board, num);
+    for (let h = 0; h < 1326; h++) if (num[h] >= 0) { out[h] = bucketRiver(edges, num[h]); eq[h] = num[h] / 1980; }
+    return { bucket: out, eq };
+  }
+  const S1 = new Float64Array(1326), S2 = new Float64Array(1326), cnt = new Int32Array(1326);
+  const used = new Uint8Array(52); for (const c of board) used[c] = 1;
+  const add = (b5) => { riverNumsAll(b5, num); for (let h = 0; h < 1326; h++) if (num[h] >= 0) { S1[h] += num[h]; S2[h] += num[h] * num[h]; cnt[h]++; } };
+  if (board.length === 4) { for (let r = 0; r < 52; r++) if (!used[r]) add([...board, r]); }
+  else { for (let t = 0; t < 52; t++) { if (used[t]) continue; for (let r = t + 1; r < 52; r++) if (!used[r]) add([...board, t, r]); } }
+  const e = board.length === 3 ? edges.flop : edges.turn;
+  for (let h = 0; h < 1326; h++) {
+    if (used[HA[h]] || used[HB[h]]) continue;
+    const V = cnt[h] * S2[h] - S1[h] * S1[h];
+    out[h] = bucket2v(e, S1[h], V, edges.VB); eq[h] = S1[h] / (cnt[h] * 1980);
+  }
+  return { bucket: out, eq };
+}
+if (typeof module !== 'undefined') Object.assign(module.exports, { allBuckets, riverNumsAll, HA, HB, hidx });
+
+</script>
+<script type="text/plain" id="engine-src">
+// Hand evaluation and bucketing, a line-for-line port of hu.c so the page sees the same buckets the solver trained on.
+// Cards: rank*4 + suit, rank 0 = deuce .. 12 = ace.
+const STRAIGHT_HI = new Int8Array(8192);
+for (let m = 0; m < 8192; m++) {
+  const m2 = (m << 1) | ((m >> 12) & 1);
+  const s = m2 & (m2 >> 1) & (m2 >> 2) & (m2 >> 3) & (m2 >> 4);
+  STRAIGHT_HI[m] = s ? 31 - Math.clz32(s) : -1;
+}
+function topBits(mask, n) {
+  let v = 0, k = 0;
+  for (let r = 12; r >= 0 && k < n; r--) if ((mask >> r) & 1) { v = v * 16 + r; k++; }
+  return v;
+}
+const rc = new Int8Array(13), sm = new Int32Array(4), sc = new Int8Array(4);
+function eval7(c) {
+  rc.fill(0); sm.fill(0); sc.fill(0);
+  let m = 0;
+  for (let i = 0; i < c.length; i++) { const r = c[i] >> 2, s = c[i] & 3; rc[r]++; sm[s] |= 1 << r; sc[s]++; m |= 1 << r; }
+  for (let s = 0; s < 4; s++) if (sc[s] >= 5) {
+    const sh = STRAIGHT_HI[sm[s]];
+    if (sh >= 0) return (8 << 20) | sh;
+    return (5 << 20) | topBits(sm[s], 5);
+  }
+  let quad = -1, t1 = -1, t2 = -1, p1 = -1, p2 = -1;
+  for (let r = 12; r >= 0; r--) {
+    if (rc[r] === 4) quad = r;
+    else if (rc[r] === 3) { if (t1 < 0) t1 = r; else if (t2 < 0) t2 = r; }
+    else if (rc[r] === 2) { if (p1 < 0) p1 = r; else if (p2 < 0) p2 = r; }
+  }
+  if (quad >= 0) return (7 << 20) | (quad << 4) | topBits(m & ~(1 << quad), 1);
+  if (t1 >= 0 && (t2 >= 0 || p1 >= 0)) return (6 << 20) | (t1 << 4) | Math.max(t2, p1);
+  const sh = STRAIGHT_HI[m];
+  if (sh >= 0) return (4 << 20) | sh;
+  if (t1 >= 0) return (3 << 20) | (t1 << 8) | topBits(m & ~(1 << t1), 2);
+  if (p1 >= 0 && p2 >= 0) return (2 << 20) | (p1 << 8) | (p2 << 4) | topBits(m & ~(1 << p1) & ~(1 << p2), 1);
+  if (p1 >= 0) return (1 << 20) | (p1 << 12) | topBits(m & ~(1 << p1), 3);
+  return topBits(m, 5);
+}
+const CATEGORY = ['High card', 'Pair', 'Two pair', 'Three of a kind', 'Straight', 'Flush', 'Full house', 'Four of a kind', 'Straight flush'];
+
+function handClass(a, b) {
+  const r1 = 12 - (a >> 2), r2 = 12 - (b >> 2);
+  const hi = Math.min(r1, r2), lo = Math.max(r1, r2);
+  if (hi === lo) return hi * 13 + hi;
+  return (a & 3) === (b & 3) ? hi * 13 + lo : lo * 13 + hi;
+}
+
+// For each target hand, num = 2*wins + ties vs every opponent hand on this 5-card board (out of 1980).
+const scratch = new Int32Array(7);
+function riverNums(board5, targets) {
+  const used = new Uint8Array(52);
+  for (const c of board5) used[c] = 1;
+  const ranks = [], ha = [], hb = [];
+  for (let i = 0; i < 5; i++) scratch[i + 2] = board5[i];
+  for (let b = 1; b < 52; b++) {
+    if (used[b]) continue;
+    for (let a = 0; a < b; a++) {
+      if (used[a]) continue;
+      scratch[0] = a; scratch[1] = b;
+      ranks.push(eval7(scratch)); ha.push(a); hb.push(b);
+    }
+  }
+  return targets.map(([x, y]) => {
+    if (used[x] || used[y]) return -1;
+    scratch[0] = x; scratch[1] = y;
+    const me = eval7(scratch);
+    let num = 0;
+    for (let k = 0; k < ranks.length; k++) {
+      const a = ha[k], b = hb[k];
+      if (a === x || a === y || b === x || b === y) continue;
+      num += ranks[k] < me ? 2 : ranks[k] === me ? 1 : 0;
+    }
+    return num;
+  });
+}
+
+// Flop (3 cards) or turn (4 cards) features: S1 = sum of num over runouts, S2 = sum of num^2, cnt = runouts.
+function features(board, targets) {
+  const used = new Uint8Array(52);
+  for (const c of board) used[c] = 1;
+  const S1 = targets.map(() => 0), S2 = targets.map(() => 0), cnt = targets.map(() => 0);
+  const add = (b5, extra) => {
+    const nums = riverNums(b5, targets);
+    nums.forEach((v, i) => { if (v >= 0) { S1[i] += v; S2[i] += v * v; cnt[i]++; } });
+  };
+  if (board.length === 4) {
+    for (let r = 0; r < 52; r++) if (!used[r]) add([...board, r]);
+  } else {
+    for (let t = 0; t < 52; t++) {
+      if (used[t]) continue;
+      for (let r = t + 1; r < 52; r++) if (!used[r]) add([...board, t, r]);
+    }
+  }
+  return targets.map((_, i) => ({ S1: S1[i], S2: S2[i], cnt: cnt[i] }));
+}
+
+function bucketRiver(edges, num) { let b = 0; while (b < edges.river.length && num >= edges.river[b]) b++; return b; }
+
+// All buckets for both players for a full deal. holes = [[a,b],[c,d]], board = 5 cards.
+function dealBuckets(edges, holes, board) {
+  const VBn = edges.VB;
+  const out = holes.map(([a, b]) => ({ cls: handClass(a, b), flop: 0, turn: 0, river: 0, eq: [0, 0, 0], spread: [0, 0] }));
+  const ff = features(board.slice(0, 3), holes);
+  ff.forEach((f, i) => {
+    const V = f.cnt * f.S2 - f.S1 * f.S1;
+    out[i].flop = bucket2v(edges.flop, f.S1, V, VBn);
+    out[i].eq[0] = f.S1 / (f.cnt * 1980);
+    out[i].spread[0] = Math.sqrt(Math.max(0, V)) / (f.cnt * 1980);
+  });
+  const tf = features(board.slice(0, 4), holes);
+  tf.forEach((f, i) => {
+    const V = f.cnt * f.S2 - f.S1 * f.S1;
+    out[i].turn = bucket2v(edges.turn, f.S1, V, VBn);
+    out[i].eq[1] = f.S1 / (f.cnt * 1980);
+    out[i].spread[1] = Math.sqrt(Math.max(0, V)) / (f.cnt * 1980);
+  });
+  riverNums(board, holes).forEach((n, i) => { out[i].river = bucketRiver(edges, n); out[i].eq[2] = n / 1980; });
+  return out;
+}
+function bucket2v(e, S1, V, VBn) {
+  let b = 0; while (b < e.eh.length && S1 >= e.eh[b]) b++;
+  let v = 0; while (v < e.v[b].length && V >= e.v[b][v]) v++;
+  return b * VBn + v;
+}
+function showdownRank(hole, board) { return eval7([hole[0], hole[1], ...board]); }
+const evalCards = eval7;
+
+if (typeof module !== 'undefined') module.exports = { eval7, evalCards, handClass, riverNums, features, dealBuckets, showdownRank, CATEGORY };
+
+// ---------- all-hands bucketing (for the spot explorer) ----------
+// num for every one of the 1326 combos on a 5-card board, by sorting ranks once: same counts as riverNums.
+const HA = new Int8Array(1326), HB = new Int8Array(1326);
+for (let b = 1, h = 0; b < 52; b++) for (let a = 0; a < b; a++, h++) { HA[h] = a; HB[h] = b; }
+const hidx = (a, b) => (a < b ? (b * (b - 1)) / 2 + a : (a * (a - 1)) / 2 + b);
+function riverNumsAll(board5, out) {
+  const used = new Uint8Array(52); for (const c of board5) used[c] = 1;
+  const list = [];
+  for (let i = 0; i < 5; i++) scratch[i + 2] = board5[i];
+  for (let h = 0; h < 1326; h++) {
+    const a = HA[h], b = HB[h];
+    if (used[a] || used[b]) { out[h] = -1; continue; }
+    scratch[0] = a; scratch[1] = b; list.push([eval7(scratch), h]);
+  }
+  list.sort((x, y) => x[0] - y[0]);
+  const Wc = new Int32Array(52), Gc = new Int32Array(52); let W = 0;
+  for (let i = 0; i < list.length;) {
+    let j = i; while (j < list.length && list[j][0] === list[i][0]) j++;
+    const G = j - i;
+    for (let k = i; k < j; k++) { const h = list[k][1]; Gc[HA[h]]++; Gc[HB[h]]++; }
+    for (let k = i; k < j; k++) { const h = list[k][1], a = HA[h], b = HB[h]; out[h] = 2 * (W - Wc[a] - Wc[b]) + (G - Gc[a] - Gc[b] + 1); }
+    for (let k = i; k < j; k++) { const h = list[k][1], a = HA[h], b = HB[h]; Gc[a]--; Gc[b]--; Wc[a]++; Wc[b]++; }
+    W += G; i = j;
+  }
+}
+// Buckets for all 1326 combos on a board of 3, 4 or 5 cards; -1 where a combo uses a board card.
+function allBuckets(edges, board) {
+  const out = new Int16Array(1326).fill(-1), eq = new Float32Array(1326);
+  const num = new Int32Array(1326);
+  if (board.length === 5) {
+    riverNumsAll(board, num);
+    for (let h = 0; h < 1326; h++) if (num[h] >= 0) { out[h] = bucketRiver(edges, num[h]); eq[h] = num[h] / 1980; }
+    return { bucket: out, eq };
+  }
+  const S1 = new Float64Array(1326), S2 = new Float64Array(1326), cnt = new Int32Array(1326);
+  const used = new Uint8Array(52); for (const c of board) used[c] = 1;
+  const add = (b5) => { riverNumsAll(b5, num); for (let h = 0; h < 1326; h++) if (num[h] >= 0) { S1[h] += num[h]; S2[h] += num[h] * num[h]; cnt[h]++; } };
+  if (board.length === 4) { for (let r = 0; r < 52; r++) if (!used[r]) add([...board, r]); }
+  else { for (let t = 0; t < 52; t++) { if (used[t]) continue; for (let r = t + 1; r < 52; r++) if (!used[r]) add([...board, t, r]); } }
+  const e = board.length === 3 ? edges.flop : edges.turn;
+  for (let h = 0; h < 1326; h++) {
+    if (used[HA[h]] || used[HB[h]]) continue;
+    const V = cnt[h] * S2[h] - S1[h] * S1[h];
+    out[h] = bucket2v(e, S1[h], V, edges.VB); eq[h] = S1[h] / (cnt[h] * 1980);
+  }
+  return { bucket: out, eq };
+}
+if (typeof module !== 'undefined') Object.assign(module.exports, { allBuckets, riverNumsAll, HA, HB, hidx });
+
+self.onmessage = (e) => {
+  const { id, edges, board } = e.data;
+  const out = [null, allBuckets(edges, board.slice(0, 3)), allBuckets(edges, board.slice(0, 4)), allBuckets(edges, board)];
+  self.postMessage({ id, out });
+};
+</script>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const A = { FOLD: 0, CHECK: 1, CALL: 2, BET: 3, RAISE: 4, ALLIN: 5 };
+  const RANKS = '23456789TJQKA', SUITS = [['♠', 's0'], ['♥', 'h'], ['♦', 'd'], ['♣', 'c']];
+  const GRID = 'AKQJT98765432', STREETS = ['Preflop', 'Flop', 'Turn', 'River'];
+    const className = (i) => { const r = Math.floor(i / 13), c = i % 13; return r === c ? GRID[r] + GRID[c] : c > r ? GRID[r] + GRID[c] + 's' : GRID[c] + GRID[r] + 'o'; };
+  const fmt = (x) => (Math.round(x * 10) / 10).toString();
+  const fmtEV = (v) => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(2);
+  const pct = (x) => (x * 100).toFixed(x < 0.1 ? 1 : 0) + '%';
+  const cardStr = (c) => RANKS[c >> 2] + SUITS[c & 3][0];
+
+  // combos and classes
+  const HA = new Int8Array(1326), HB = new Int8Array(1326), CLS = new Int16Array(1326);
+  const byClass = Array.from({ length: 169 }, () => []);
+  for (let b = 1, h = 0; b < 52; b++) for (let a = 0; a < b; a++, h++) {
+    HA[h] = a; HB[h] = b;
+    const r1 = 12 - (a >> 2), r2 = 12 - (b >> 2), hi = Math.min(r1, r2), lo = Math.max(r1, r2);
+    CLS[h] = hi === lo ? hi * 13 + hi : (a & 3) === (b & 3) ? hi * 13 + lo : lo * 13 + hi;
+    byClass[CLS[h]].push(h);
+  }
+
+  let D = null, worker = null, wid = 0, gameKey = GAMES6.order[0];
+  let board = [], buckets = null, path = [], mode = 'range', selClass = 0, picking = -1;
+  const loaded = new Map();
+  function loadScript(src) { return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error(src)); document.head.appendChild(s); }); }
+  async function load() {
+    if (!worker) {
+      worker = new Worker(URL.createObjectURL(new Blob([$('engine-src').textContent], { type: 'text/javascript' })));
+      worker.onmessage = (e) => { if (e.data.id === wid) { buckets = e.data.out; render(); } };
+    }
+    if (loaded.has(gameKey)) { D = loaded.get(gameKey); return; }
+    window.SUB = window.SUB || {};
+    if (!window.SUB[gameKey]) await loadScript(`../six-max/data2/${gameKey}.js`);
+    const bin = Uint8Array.from(atob(window.SUB[gameKey]), (c) => c.charCodeAt(0));
+    const buf = await new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+    const dv = new DataView(buf), jl = dv.getUint32(0, true);
+    const meta = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 4, jl)));
+    let off = 4 + jl; const n = meta.nSlots;
+    const freq = new Uint8Array(buf, off, n); off += n; if (off % 2) off++;
+    const ev = new Int16Array(buf.slice(off, off + 2 * n)); off += 2 * n;
+    const cnt = new Uint8Array(buf, off, n);
+    D = { tree: meta.tree, edges: meta.edges, freq, ev, cnt, game: GAMES6.games[gameKey] };
+    loaded.set(gameKey, D);
+  }
+  const node = (id) => D.tree.nodes[id];
+  const STACK = () => D.tree.stack;
+
+  function setBoard(b) {
+    board = b; buckets = null;
+    worker.postMessage({ id: ++wid, edges: D.edges, board });
+    render();
+  }
+  function randomBoard() {
+    const d = [...Array(52).keys()];
+    for (let i = 51; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [d[i], d[j]] = [d[j], d[i]]; }
+    setBoard(d.slice(0, 5));
+  }
+
+  // ---------- current node and ranges ----------
+  const ACTS = (N) => N[4], BASE = (N) => N[3], CON = (N) => N[2];
+  function currentNode() { let id = 0; for (const s of path) id = ACTS(node(s.nid))[s.a][2]; return id; }
+  function streetStarts() {
+    const starts = []; starts[1] = CON(node(0)); let id = 0, street = 1;
+    for (const s of path) { id = ACTS(node(s.nid))[s.a][2]; if (id >= 0 && node(id)[1] !== street) { street = node(id)[1]; starts[street] = CON(node(id)); } }
+    return starts;
+  }
+  function bucketOf(street, h) { return buckets ? buckets[street].bucket[h] : -1; }
+  // reach[p][h]: the player's preflop range weight times the probability of taking the path's actions with combo h
+  function reaches() {
+    const k = D.game.k;
+    const r = Array.from({ length: k }, (_, p) => { const w = D.game.ranges[p], mx = Math.max(...w); return Float64Array.from({ length: 1326 }, (_, h) => w[CLS[h]] / mx); });
+    for (const s of path) {
+      const N = node(s.nid), p = N[0], n = ACTS(N).length;
+      for (let h = 0; h < 1326; h++) {
+        if (!r[p][h]) continue;
+        const b = bucketOf(N[1], h);
+        r[p][h] = b < 0 ? 0 : r[p][h] * (D.freq[BASE(N) + b * n + s.a] / 255);
+      }
+    }
+    return r;
+  }
+  function visibleBoard(street) { return board.slice(0, [0, 3, 4, 5][street]); }
+
+  function actionInfo(N, a) {
+    const [type, to] = ACTS(N)[a], p = N[0], c = CON(N), s = N[1];
+    const start = streetStarts()[s] || c;
+    const toCall = Math.max(...c) - c[p], pot = c.reduce((x, y) => x + y, 0) + D.tree.dead;
+    let name, color;
+    switch (type) {
+      case A.FOLD: name = 'Fold'; color = 'var(--fold)'; break;
+      case A.CHECK: name = 'Check'; color = 'var(--call)'; break;
+      case A.CALL: name = `Call ${fmt(toCall)}`; color = 'var(--call)'; break;
+      case A.BET: { const f = (to - c[p]) / pot; name = `Bet ${fmt(to - start[p])} (${f < 0.42 ? '⅓' : f < 0.62 ? '½' : '¾'} pot)`; color = f < 0.42 ? 'var(--bet)' : 'var(--bet2)'; break; }
+      case A.RAISE: name = `Raise to ${fmt(to - start[p])}`; color = 'var(--bet2)'; break;
+      case A.ALLIN: name = 'All-in'; color = 'var(--jam)'; break;
+    }
+    return { name, color, type };
+  }
+  const typeRank = (t) => (t === A.FOLD ? 0 : t === A.CHECK || t === A.CALL ? 1 : t === A.ALLIN ? 3 : 2);
+
+  // ---------- rendering ----------
+  function cardHTML(c, cls = '') { const [sym, sc] = SUITS[c & 3]; return `<span class="r">${RANKS[c >> 2]}</span><span class="s">${sym}</span>`; }
+  function render() {
+    if (!D) return;
+    const nid = currentNode(), street = nid >= 0 ? node(nid)[1] : Math.max(1, ...path.map((s) => node(s.nid)[1]));
+    const NAMES = D.game.roles;
+    // board
+    $('board').innerHTML = board.map((c, i) => {
+      const later = i >= [0, 3, 4, 5][street];
+      return `<button class="slot filled ${SUITS[c & 3][1]}${later ? ' later' : ''}${picking === i ? ' sel' : ''}" data-i="${i}" aria-label="Board card ${i + 1}: ${cardStr(c)}">${cardHTML(c)}</button>`;
+    }).join('');
+    $('boardhint').textContent = 'Faded cards are not dealt yet at this point. Click a card slot to change it.';
+    // line
+    let html = '', id = 0, s0 = -1;
+    path.forEach((s, i) => {
+      const N = node(s.nid);
+      if (N[1] !== s0) { s0 = N[1]; html += `<span class="crumb street">${STREETS[s0]}${s0 > 0 ? ' ' + visibleBoard(s0).slice(s0 === 1 ? 0 : -1).map(cardStr).join(' ') : ''}</span>`; }
+      html += `<button class="crumb" data-back="${i}" title="Go back to this decision"><b>${NAMES[N[0]]}</b> ${actionInfo(N, s.a).name.toLowerCase()}</button>`;
+    });
+    if (!path.length) html = '<span class="hint">Start of the flop. Choose an action below to walk the tree.</span>';
+    $('line').innerHTML = html;
+    if (nid < 0) {
+      const T = D.tree.terms[-nid - 1];
+      $('pot').textContent = `Pot ${fmt(T[2].reduce((x, y) => x + y, 0) + D.tree.dead)}bb`;
+      $('next').innerHTML = `<span class="status">${T[0] === 0 ? 'Everyone else folds.' : 'Showdown.'} The hand is over. Click any step above to go back.</span>`;
+      $('grid').innerHTML = ''; $('totals').innerHTML = ''; $('hand').innerHTML = ''; $('legend').innerHTML = ''; $('combos').textContent = ''; $('gridhint').textContent = '';
+      $('grid-title').textContent = 'Hand over';
+      return;
+    }
+    const N = node(nid), p = N[0], acts = ACTS(N), n = acts.length;
+    $('pot').textContent = `Pot ${fmt(CON(N).reduce((x, y) => x + y, 0) + D.tree.dead)}bb · ${NAMES[p]} to act`;
+    $('next').innerHTML = acts.map((_, a) => { const I = actionInfo(N, a); return `<button data-a="${a}" class="${I.type === A.FOLD ? 'fold' : ''}" style="--c:${I.color}">${I.name}</button>`; }).join('');
+    $('grid-title').textContent = `${NAMES[p]}: ${STREETS[N[1]].toLowerCase()} strategy`;
+    if (!buckets) { $('grid').innerHTML = '<p class="hint" style="grid-column:1/-1">Grouping every hand on this board…</p>'; return; }
+    const order = acts.map((_, a) => a).sort((x, y) => typeRank(acts[y][0]) - typeRank(acts[x][0]) || acts[y][1] - acts[x][1]);
+    const info = acts.map((_, a) => actionInfo(N, a));
+    $('legend').innerHTML = order.map((a) => `<span><i style="--c:${info[a].color}"></i>${info[a].name}</span>`).join('');
+    const reach = reaches()[p], vis = new Set(visibleBoard(N[1]));
+    const blocked = (h) => vis.has(HA[h]) || vis.has(HB[h]);
+    const w = (h) => (blocked(h) ? 0 : mode === 'all' ? 1 : reach[h]);
+    // per class
+    let cells = '', totW = 0;
+    const tot = new Float64Array(n), totEV = new Float64Array(n), evW = new Float64Array(n);
+    for (let cl = 0; cl < 169; cl++) {
+      const mix = new Float64Array(n); let cw = 0;
+      for (const h of byClass[cl]) {
+        const ww = w(h); if (!ww) continue;
+        const b = bucketOf(N[1], h); if (b < 0) continue;
+        const base = BASE(N) + b * n;
+        for (let a = 0; a < n; a++) { const f = D.freq[base + a] / 255; mix[a] += ww * f; tot[a] += ww * f; if (D.cnt[base] >= 40) { totEV[a] += ww * D.ev[base + a] / 100; evW[a] += ww; } }
+        cw += ww;
+      }
+      totW += cw;
+      const frac = cw / byClass[cl].length;
+      let stops = [], acc = 0;
+      if (cw > 0) for (const a of order) { const f = mix[a] / cw; if (f <= 0.001) continue; stops.push(`${info[a].color} ${(acc * 100).toFixed(1)}% ${((acc + f) * 100).toFixed(1)}%`); acc += f; }
+      cells += `<button class="cell${cl === selClass ? ' sel' : ''}" data-c="${cl}" aria-label="${className(cl)}"><span class="fill" style="height:${(Math.min(1, frac) * 100).toFixed(1)}%;background:${stops.length ? `linear-gradient(to right, ${stops.join(',')})` : 'transparent'}"></span><span class="nm">${className(cl)}</span></button>`;
+    }
+    $('grid').innerHTML = cells;
+    $('gridhint').textContent = mode === 'range' ? 'Bar height shows how much of each hand is still in the range; colors show how the solver plays it.' : 'Every unblocked combo counted equally, whether or not it would reach this point.';
+    $('combos').textContent = `${fmt(totW)} combos`;
+    $('totals').innerHTML = `<div class="mixrow label"><span>Action</span><span>Share of range</span><span style="text-align:right">Freq</span><span style="text-align:right">EV</span></div>` +
+      order.map((a) => `<div class="mixrow"><span>${info[a].name}</span><div class="bar"><div style="width:${totW ? (tot[a] / totW * 100).toFixed(1) : 0}%;--c:${info[a].color}"></div></div><span class="num">${totW ? pct(tot[a] / totW) : '–'}</span><span class="num">${evW[a] ? fmtEV(totEV[a] / evW[a]) : '–'}</span></div>`).join('');
+    renderHand(N, info, order, reach, blocked);
+  }
+  function renderHand(N, info, order, reach, blocked) {
+    const n = ACTS(N).length;
+    $('hand-title').textContent = `${className(selClass)} combos`;
+    const rows = byClass[selClass].map((h) => {
+      if (blocked(h)) return `<div class="combo"><span>${cardStr(HB[h])}${cardStr(HA[h])}</span><span class="hint">uses a board card</span><span></span></div>`;
+      const b = bucketOf(N[1], h), base = BASE(N) + b * n;
+      const bars = order.map((a) => `<div style="width:${(D.freq[base + a] / 255 * 100).toFixed(1)}%;--c:${info[a].color}" title="${info[a].name} ${pct(D.freq[base + a] / 255)}"></div>`).join('');
+      const eq = buckets ? ` · ${Math.round(buckets[N[1]].eq[h] * 100)}% eq` : '';
+      return `<div class="combo"><span>${cardStr(HB[h])}${cardStr(HA[h])}</span><div class="stack">${bars}</div><span class="w" title="Share of this combo still in range${eq}">${mode === 'range' ? pct(reach[h]) : ''}</span></div>`;
+    }).join('');
+    $('hand').innerHTML = `<div class="combos">${rows}</div><p class="hint" style="margin-top:8px">Each row is one combo: the bar shows the solver's mix, the number how often this combo is still in the range.</p>`;
+  }
+
+  // ---------- controls ----------
+  $('next').addEventListener('click', (e) => { const b = e.target.closest('button[data-a]'); if (!b) return; path.push({ nid: currentNode(), a: +b.dataset.a }); render(); });
+  $('game').innerHTML = GAMES6.order.map((k) => `<option value="${k}">${GAMES6.games[k].label}</option>`).join('');
+  $('game').onchange = async () => { gameKey = $('game').value; path = []; await load(); setGameHint(); setBoard(board); };
+  function setGameHint() { const g = GAMES6.games[gameKey]; $('gamehint').textContent = `${g.desc} Pot ${fmt(g.pot)}bb at the flop. ${(g.share * 100).toFixed(1)}% of 6-max flops are this type.`; }
+  $('line').addEventListener('click', (e) => { const b = e.target.closest('button[data-back]'); if (!b) return; path = path.slice(0, +b.dataset.back); render(); });
+  $('grid').addEventListener('click', (e) => { const c = e.target.closest('.cell'); if (!c) return; selClass = +c.dataset.c; render(); });
+  $('mode').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; mode = b.dataset.v; for (const x of $('mode').children) x.setAttribute('aria-pressed', String(x === b)); render(); });
+  for (const x of $('mode').children) x.setAttribute('aria-pressed', String(x.dataset.v === mode));
+  $('randboard').onclick = randomBoard;
+  $('board').addEventListener('click', (e) => {
+    const s = e.target.closest('.slot'); if (!s) return;
+    picking = picking === +s.dataset.i ? -1 : +s.dataset.i;
+    $('picker').hidden = picking < 0;
+    if (picking >= 0) {
+      let html = '';
+      for (let su = 0; su < 4; su++) for (let r = 12; r >= 0; r--) { const c = r * 4 + su; html += `<button class="${SUITS[su][1]}" data-card="${c}" ${board.includes(c) ? 'disabled' : ''}>${RANKS[r]}${SUITS[su][0]}</button>`; }
+      $('picker').innerHTML = html;
+    }
+    render();
+  });
+  $('picker').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-card]'); if (!b || picking < 0) return;
+    const nb = board.slice(); nb[picking] = +b.dataset.card; picking = -1; $('picker').hidden = true; setBoard(nb);
+  });
+
+  load().then(() => {
+    $('game').value = gameKey; setGameHint();
+    selClass = 0;
+    randomBoard();
+  }).catch((err) => { console.error(err); $('grid').innerHTML = '<p class="hint" style="grid-column:1/-1">The solver data did not load. Reload the page to try again.</p>'; });
+})();
+</script>
+<!--LAB-B--><script id="lab-polish-js">
+// Poker Solver Lab polish layer: animates only what changed between renders (new cards, flipped cards,
+// new action chips, pot and stat changes) and pops a grade badge after each decision.
+(() => {
+  const reduce = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : { matches: true };
+  const seen = new Map(); // spot key -> last identity
+  let lastAct = 0, verdictBefore = '';
+
+  const anchorOf = (el) => {
+    const seat = el.closest('.seat');
+    if (seat) return ['S' + seat.style.left + ',' + seat.style.top, seat];
+    const a = el.closest('[id]');
+    return a ? ['#' + a.id, a] : ['body', document.body];
+  };
+  const restart = (el, cls) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
+
+  function scanCards() {
+    const fresh = new Map(); // anchor -> count of newly dealt cards in this pass, for staggering
+    for (const pc of document.querySelectorAll('.pc')) {
+      const [ak, anchor] = anchorOf(pc);
+      const i = [...anchor.querySelectorAll('.pc')].indexOf(pc);
+      const key = 'pc|' + ak + '|' + i;
+      const id = pc.classList.contains('slot') ? 'slot' : pc.classList.contains('back') ? 'back' : pc.textContent.trim();
+      const prev = seen.get(key);
+      seen.set(key, id);
+      if (prev === id || id === 'slot' || pc.classList.contains('lab-deal') || pc.classList.contains('lab-flip')) continue;
+      const n = fresh.get(ak) || 0; fresh.set(ak, n + 1);
+      pc.style.setProperty('--lab-d', n * 85 + 'ms');
+      pc.classList.add(prev === 'back' ? 'lab-flip' : 'lab-deal');
+    }
+  }
+  function scanText(sel, cls, keyPrefix) {
+    for (const el of document.querySelectorAll(sel)) {
+      const [ak, anchor] = anchorOf(el);
+      const i = [...anchor.querySelectorAll(sel)].indexOf(el);
+      const key = keyPrefix + '|' + ak + '|' + i;
+      const t = el.textContent.trim();
+      const prev = seen.get(key);
+      seen.set(key, t);
+      if (prev !== undefined && prev !== t && t) restart(el, cls);
+    }
+  }
+
+  const visibleVerdict = () => [...document.querySelectorAll('.verdict')].find((x) => x.offsetParent !== null);
+  function verdictText() { const v = visibleVerdict(); return v ? v.textContent.trim() : ''; }
+  function toast() {
+    const v = [...document.querySelectorAll('.verdict')].find((x) => x.offsetParent !== null);
+    if (!v) return;
+    const text = v.textContent.trim();
+    if (!text || /^(solver|your options)/i.test(text)) return;
+    const color = getComputedStyle(v).color;
+    const low = text.toLowerCase();
+    const icon = /mistake|wrong|bad|blunder/.test(low) ? '✕' : /inacc|close|small/.test(low) ? '~' : '✓';
+    const onScreen = (x) => { const r = x.getBoundingClientRect(); return r.height > 0 && r.bottom > 80 && r.top < innerHeight - 80; };
+    // over the table when there is one, otherwise over the panel holding the action buttons
+    let host = [...document.querySelectorAll('.table, .felt')].find(onScreen) || document.querySelector('#actions')?.closest('.card');
+    if (host && !onScreen(host)) host = null;
+    if (host && getComputedStyle(host).position === 'static') host.style.position = 'relative';
+    const t = document.createElement('div');
+    t.className = 'labtoast' + (host ? '' : ' fixed');
+    t.style.setProperty('--v', color);
+    t.innerHTML = `<i aria-hidden="true">${icon}</i>`;
+    t.append(text.replace(/\s+/g, ' '));
+    t.setAttribute('role', 'status');
+    (host || document.body).appendChild(t);
+    setTimeout(() => t.classList.add('out'), 1100);
+    setTimeout(() => t.remove(), 1500);
+  }
+
+  let queued = false;
+  function scan() {
+    queued = false;
+    if (!reduce.matches) {
+      scanCards();
+      scanText('.actchip, .seat .chip', 'lab-pop', 'chip');
+      scanText('.pot, .potline', 'lab-bump', 'pot');
+      scanText('.stats b', 'lab-bump', 'stat');
+    }
+    if (performance.now() - lastAct < 1600) {
+      const v = visibleVerdict();
+      // a re-rendered verdict node, or a changed or newly shown one, means the decision was just graded
+      if (v && v.textContent.trim() && (!v.dataset.labOld || v.textContent.trim() !== verdictBefore)) { lastAct = 0; toast(); }
+    }
+  }
+  const nextFrame = window.requestAnimationFrame ? (f) => requestAnimationFrame(f) : (f) => setTimeout(f, 16);
+  new MutationObserver(() => { if (!queued) { queued = true; nextFrame(scan); } })
+    .observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['hidden', 'class'] });
+  // A click on an action button starts a short window in which a new grade gets a toast.
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('#actions button, .actions button');
+    if (!b || b.id === 'next-in' || b.id === 'next' || /deal next|next hand/i.test(b.textContent)) return;
+    verdictBefore = verdictText();
+    for (const v of document.querySelectorAll('.verdict')) v.dataset.labOld = '1';
+    lastAct = performance.now();
+  }, true);
+  for (const el of document.querySelectorAll('.pc')) el.classList.add('lab-deal');
+  scan();
+})();
+</script><!--/LAB-B-->
+</html>
