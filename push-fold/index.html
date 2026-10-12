@@ -762,7 +762,7 @@ if (typeof module !== 'undefined') module.exports = { buildModel, POS6, rangeInd
     }
     $('cards').innerHTML = spot.cards.map(cardHTML).join('');
     $('handname').innerHTML = `${handName(spot.cls)}<small>${handLong(spot.cls)}</small>`;
-    const aggr = type === 'open' ? ['shove', 'Shove', 'S'] : ['call', 'Call', 'C'];
+    const aggr = type === 'open' ? ['shove', 'Shove', 'A'] : ['call', 'Call', 'C'];
     $('actions').innerHTML = `<button class="act ${aggr[0]}" data-a="aggr">${aggr[1]} <kbd>${aggr[2]}</kbd></button><button class="act fold" data-a="fold">Fold <kbd>F</kbd></button>`;
     $('feedback').hidden = true;
   }
@@ -882,7 +882,7 @@ if (typeof module !== 'undefined') module.exports = { buildModel, POS6, rangeInd
     if (e.metaKey || e.ctrlKey || e.altKey || e.target.closest('input, select')) return;
     if ($('view-practice').hidden) return;
     const key = e.key.toLowerCase();
-    if (!answered && (key === 's' || key === 'c' || key === '1')) { e.preventDefault(); answer('aggr'); }
+    if (!answered && (key === 'a' || key === 's' || key === 'r' || key === 'c' || key === '1')) { e.preventDefault(); answer('aggr'); }
     else if (!answered && (key === 'f' || key === '2')) { e.preventDefault(); answer('fold'); }
     else if (answered && (key === 'enter' || key === ' ' || key === 'n')) { e.preventDefault(); showSpot(); }
   });

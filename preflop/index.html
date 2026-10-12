@@ -517,11 +517,23 @@ const PRE6 = {"version":2,"pos":["UTG","HJ","CO","BTN","SB","BB"],"stack":100,"n
     const verb = s.type === 'vs3bet' ? (s.inPot && s.inPot.length > 2 && s.raiser !== s.opener ? 'squeezes' : '3-bets') : s.type === 'vs4bet' ? '4-bets' : 'moves all-in';
     return `<b>${POS[s.raiser]}</b> ${verb}${s.type === 'vsJam' ? ' for 100bb' : ` to ${s.size}bb`}. Back to you in the <b>${me}</b>.`;
   }
+  // Keyboard: F fold, C check/call, R the smallest bet or raise, A all-in. Other sizes keep their number key.
+  function actKeys(names) {
+    const keys = names.map((_, i) => String(i + 1));
+    const pick = (re, k) => { const i = names.findIndex((n, j) => keys[j] === String(j + 1) && re.test(n)); if (i >= 0) keys[i] = k; };
+    pick(/^fold/i, 'F'); pick(/^(check|call|limp)/i, 'C'); pick(/all-in/i, 'A'); pick(/^(bet|raise|\d-bet|squeeze)/i, 'R');
+    return keys;
+  }
+  function actionForKey(e) {
+    const k = e.key.toUpperCase(), key = { K: 'C', B: 'R', S: 'A', J: 'A' }[k] || k;
+    return [...$('actions').querySelectorAll('button[data-a]')].find((b) => b.dataset.key === key || String(+b.dataset.a + 1) === k);
+  }
   function showDecision() {
     const n = nodes[H.ref];
     renderTable();
     $('story').innerHTML = storyText(n) + ' What do you do?';
-    $('actions').innerHTML = n.a.map((x, a) => `<button class="act${x[1] === 'fold' ? ' fold' : ''}" data-a="${a}" style="--c:${actColor(n, a)}">${x[0]} <kbd>${a + 1}</kbd></button>`).join('');
+    const keys = actKeys(n.a.map((x) => x[0]));
+    $('actions').innerHTML = n.a.map((x, a) => `<button class="act${x[1] === 'fold' ? ' fold' : ''}" data-a="${a}" data-key="${keys[a]}" style="--c:${actColor(n, a)}">${x[0]} <kbd>${keys[a]}</kbd></button>`).join('');
     $('fb-card').hidden = true;
   }
   function answer(a) {
@@ -591,7 +603,7 @@ const PRE6 = {"version":2,"pos":["UTG","HJ","CO","BTN","SB","BB"],"stack":100,"n
   document.addEventListener('keydown', (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey || e.target.closest('select, input')) return;
     if ($('view-practice').hidden) return;
-    if (H && !H.answered) { const x = +e.key; if (x >= 1 && x <= nodes[H.ref].a.length) { e.preventDefault(); answer(x - 1); } }
+    if (H && !H.answered) { const b = actionForKey(e); if (b) { e.preventDefault(); answer(+b.dataset.a); } }
     else if (H && (e.key === 'Enter' || e.key === ' ' || e.key === 'n')) { e.preventDefault(); cont(); }
   });
 

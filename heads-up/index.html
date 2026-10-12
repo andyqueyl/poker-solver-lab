@@ -980,12 +980,23 @@ self.onmessage = (e) => {
   const kindOf = (type) => (type === A.FOLD ? 'fold' : type === A.CHECK || type === A.CALL ? 'passive' : 'aggressive');
 
   let heroResolve = null;
+  // Keyboard: F fold, C check/call, R the smallest bet or raise, A all-in. Other sizes keep their number key.
+  function actKeys(names) {
+    const keys = names.map((_, i) => String(i + 1));
+    const pick = (re, k) => { const i = names.findIndex((n, j) => keys[j] === String(j + 1) && re.test(n)); if (i >= 0) keys[i] = k; };
+    pick(/^fold/i, 'F'); pick(/^(check|call|limp)/i, 'C'); pick(/all-in/i, 'A'); pick(/^(bet|raise|\d-bet|squeeze)/i, 'R');
+    return keys;
+  }
+  function actionForKey(e) {
+    const k = e.key.toUpperCase(), key = { K: 'C', B: 'R', S: 'A', J: 'A' }[k] || k;
+    return [...$('actions').querySelectorAll('button[data-a]')].find((b) => b.dataset.key === key || String(+b.dataset.a + 1) === k);
+  }
   function waitForHero(N) {
-    const acts = N[5];
+    const acts = N[5], keys = actKeys(acts.map((_, a) => actionLabel(N, a).name));
     $('actions').innerHTML = acts.map((_, a) => {
       const L = actionLabel(N, a);
       const col = L.cls === 'aggr' ? actionColor(N, a) : '';
-      return `<button class="act ${L.cls}" data-a="${a}"${col ? ` style="background:${col};border-color:${col}"` : ''}>${L.name}<small><span>${L.sub}</span><kbd>${a + 1}</kbd></small></button>`;
+      return `<button class="act ${L.cls}" data-a="${a}" data-key="${keys[a]}"${col ? ` style="background:${col};border-color:${col}"` : ''}>${L.name}<small><span>${L.sub}</span><kbd>${keys[a]}</kbd></small></button>`;
     }).join('');
     return new Promise((res) => { heroResolve = res; });
   }
@@ -1243,9 +1254,8 @@ self.onmessage = (e) => {
   document.addEventListener('keydown', (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey || e.target.closest('input, select')) return;
     if (e.key === 'n' || e.key === 'N' || (e.key === 'Enter' && H && H.done)) { if (!H || H.done) { e.preventDefault(); startHand(); } return; }
-    const k = +e.key;
-    if (k >= 1 && k <= 9 && heroResolve) {
-      const btn = $('actions').querySelector(`button[data-a="${k - 1}"]`);
+    if (heroResolve) {
+      const btn = actionForKey(e);
       if (btn) { e.preventDefault(); btn.click(); }
     }
   });
